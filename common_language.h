@@ -1,0 +1,457 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "common.h"
+#include <cstring>
+#include <functional>
+#ifdef __CUDACC__
+#include <cuda_device_runtime_api.h>
+#include <cuda_runtime_api.h>
+#include <driver_types.h>
+
+#define CUCHECK(op)                                                            \
+  {                                                                            \
+    cudaError_t cudaerr = op;                                                  \
+    if (cudaerr != cudaSuccess) {                                              \
+      printf("%s failed with error: %s\n", #op, cudaGetErrorString(cudaerr));  \
+      exit(1);                                                                 \
+    }                                                                          \
+  }
+
+constexpr size_t kWarpSize = 32;
+
+__inline__ __device__ uint64_t warpReduceSum(uint64_t val) {
+  for (int offset = warpSize / 2; offset > 0; offset /= 2)
+    val += __shfl_down_sync(~0, val, offset);
+  return val;
+}
+
+__inline__ __device__ int GetIndex() {
+  return threadIdx.x + blockIdx.x * blockDim.x;
+}
+
+__inline__ __device__ void IncreaseInsnCount(unsigned long long count,
+                                             unsigned long long *storage) {
+  size_t index = GetIndex();
+  size_t warp_ops = warpReduceSum(count);
+  if (index % kWarpSize == 0) {
+    atomicAdd(storage, warp_ops);
+  }
+}
+
+inline void Synchronize() { CUCHECK(cudaDeviceSynchronize()); }
+
+template <typename T> struct DeviceMemory {
+  T *data;
+  DeviceMemory(size_t size) { CUCHECK(cudaMalloc(&data, size * sizeof(T))); }
+  void Write(const T *host, size_t count) {
+    CUCHECK(cudaMemcpy(data, host, count * sizeof(T), cudaMemcpyHostToDevice));
+  }
+  void Read(T *host, size_t count) {
+    CUCHECK(cudaMemcpy(host, data, count * sizeof(T), cudaMemcpyDeviceToHost));
+  }
+  T *Get() { return data; }
+  ~DeviceMemory() { CUCHECK(cudaFree(data)); }
+  DeviceMemory(DeviceMemory &) = delete;
+};
+
+#define RUN(grid, block, fun, ...) fun<<<grid, block>>>(__VA_ARGS__)
+
+#else
+#define __device__
+#define __host__
+#define __global__
+
+inline int &IndexThreadLocal() {
+  thread_local int index;
+  return index;
+}
+
+inline int GetIndex() { return IndexThreadLocal(); }
+
+inline void IncreaseInsnCount(unsigned long long count,
+                              unsigned long long *storage) {
+  __atomic_add_fetch(storage, count, __ATOMIC_RELAXED);
+}
+
+inline void Synchronize() {}
+
+template <typename T> struct DeviceMemory {
+  T *data;
+  DeviceMemory(size_t size) { data = (T *)malloc(size * sizeof(T)); }
+  void Write(const T *host, size_t count) {
+    memcpy(data, host, count * sizeof(T));
+  }
+  void Read(T *host, size_t count) { memcpy(host, data, count * sizeof(T)); }
+  T *Get() { return data; }
+  ~DeviceMemory() { free(data); }
+  DeviceMemory(DeviceMemory &) = delete;
+};
+
+#define RUN(grid, block, fun, ...)                                             \
+  _Pragma("omp parallel for") for (size_t _threadcnt = 0;                      \
+                                   _threadcnt < grid * block; _threadcnt++) {  \
+    IndexThreadLocal() = _threadcnt;                                           \
+    fun(__VA_ARGS__);                                                          \
+  }
+
+#endif
+
+#define CHECK(op)                                                              \
+  if (!(op)) {                                                                 \
+    printf("%s is false\n", #op);                                              \
+    exit(1);                                                                   \
+  }
+
+inline __device__ __host__ uint64_t SplitMix64(uint64_t seed) {
+  uint64_t z = seed + 0x9e3779b97f4a7c15;
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+  return z ^ (z >> 31);
+}
+
+template <typename Language>
+__global__ void InitPrograms(size_t seed, size_t num_programs,
+                             uint8_t *programs, bool zero_init) {
+  int index = GetIndex();
+  auto prog = programs + index * kSingleTapeSize;
+  if (zero_init) {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      prog[i] = 0;
+    }
+  } else {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      prog[i] = SplitMix64(kSingleTapeSize * num_programs * seed +
+                           kSingleTapeSize * index + i) %
+                256;
+    }
+  }
+}
+
+template <typename Language>
+__global__ void
+MutateAndRunPrograms(const uint8_t *programs, uint8_t *programs_out,
+                     const uint32_t *shuf_idx, size_t seed,
+                     uint32_t mutation_prob, unsigned long long *insn_count,
+                     size_t num_programs, bool use_interaction_pattern) {
+  int index = GetIndex();
+  uint8_t tape[2 * kSingleTapeSize] = {};
+  uint32_t p1, p2;
+  bool flipped =
+      SplitMix64((num_programs * seed + index) * kSingleTapeSize * 2 - 1) & 1;
+  if (use_interaction_pattern) {
+    if (flipped) {
+      p2 = index;
+      p1 = shuf_idx[index];
+    } else {
+      p1 = index;
+      p2 = shuf_idx[index];
+    }
+  } else {
+    p1 = shuf_idx[2 * index];
+    p2 = shuf_idx[2 * index + 1];
+  }
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    tape[i] = programs[p1 * kSingleTapeSize + i];
+    tape[i + kSingleTapeSize] = programs[p2 * kSingleTapeSize + i];
+  }
+  for (size_t i = 0; i < 2 * kSingleTapeSize; i++) {
+    uint64_t rng =
+        SplitMix64((num_programs * seed + index) * kSingleTapeSize * 2 + i);
+    uint8_t repl = rng & 0xFF;
+    uint64_t prob_rng = (rng >> 8) & ((1ULL << 30) - 1);
+    if (prob_rng < mutation_prob) {
+      tape[i] = repl;
+    }
+  }
+  bool debug = false;
+  size_t ops;
+  ops = Language::Evaluate(tape, 8 * 1024, debug);
+  if (!use_interaction_pattern) {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      programs_out[p1 * kSingleTapeSize + i] = tape[i];
+      programs_out[p2 * kSingleTapeSize + i] = tape[i + kSingleTapeSize];
+    }
+  } else {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      programs_out[index * kSingleTapeSize + i] =
+          tape[flipped ? i + kSingleTapeSize : i];
+    }
+  }
+  IncreaseInsnCount(ops, insn_count);
+}
+
+template <typename Language>
+__global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
+  size_t ops = Language::Evaluate(program, stepcount, debug);
+  printf("ops: %d\n", (int)ops);
+  printf("\n");
+}
+
+template <typename Language>
+void Simulation<Language>::RunSingleProgram(std::string program,
+                                            size_t stepcount, bool debug) {
+  std::string parsed = Language::Parse(program);
+  DeviceMemory<uint8_t> mem(kSingleTapeSize * 2);
+  uint8_t zero[2 * kSingleTapeSize] = {};
+  memcpy(zero, parsed.data(), parsed.size());
+  mem.Write(zero, 2 * kSingleTapeSize);
+  Language::PrintProgram(2 * kSingleTapeSize, zero, 2 * kSingleTapeSize,
+                         nullptr, 0);
+
+  RUN(1, 1, RunOneProgram<Language>, mem.Get(), stepcount, debug);
+
+  uint8_t final_state[2 * kSingleTapeSize];
+  Synchronize();
+  mem.Read(final_state, 2 * kSingleTapeSize);
+  Language::PrintProgram(2 * kSingleTapeSize, final_state, 2 * kSingleTapeSize,
+                         nullptr, 0);
+}
+
+template <typename Language>
+void Simulation<Language>::RunSimulation(
+    const SimulationParams &params, std::optional<std::string> initial_program,
+    std::function<bool(const SimulationState &)> callback) {
+  constexpr size_t kNumThreads = 32;
+  size_t num_programs = params.num_programs;
+
+  size_t reset_index = 1;
+  size_t epoch = 0;
+
+  FILE *load_file = nullptr;
+  if (params.load_from.has_value()) {
+    load_file = CheckFopen(params.load_from->c_str(), "r");
+    CHECK(fread(&reset_index, sizeof(reset_index), 1, load_file) == 1);
+    CHECK(fread(&num_programs, sizeof(num_programs), 1, load_file) == 1);
+    CHECK(fread(&epoch, sizeof(epoch), 1, load_file) == 1);
+  }
+
+  size_t programs_denominator =
+      params.allowed_interactions.empty() ? 2 * kNumThreads : kNumThreads;
+
+  CHECK(num_programs % programs_denominator == 0);
+
+  DeviceMemory<uint8_t> programs(kSingleTapeSize * num_programs);
+  DeviceMemory<uint8_t> programs_next(kSingleTapeSize * num_programs);
+  DeviceMemory<unsigned long long> insn_count(1);
+
+  auto seed = [&](size_t seed2) {
+    return SplitMix64(SplitMix64(params.seed) ^ SplitMix64(seed2));
+  };
+
+  RUN(num_programs / kNumThreads, kNumThreads, InitPrograms<Language>, seed(0),
+      num_programs, programs.Get(), params.zero_init);
+
+  if (initial_program.has_value()) {
+    std::string parsed = Language::Parse(*initial_program);
+    programs.Write((const unsigned char *)parsed.data(), parsed.size());
+  }
+
+  unsigned long long zero = 0;
+  insn_count.Write(&zero, 1);
+
+  unsigned long long total_ops = 0;
+
+  SimulationState state;
+  state.soup.reserve(num_programs * kSingleTapeSize + 16);
+  state.soup.resize(num_programs * kSingleTapeSize);
+  state.shuffle_idx.resize(num_programs);
+  Language::InitByteColors(state.byte_colors);
+
+  state.print_program = [&](size_t i) {
+    const uint8_t *ptr = state.soup.data() + 2 * i * kSingleTapeSize;
+    Language::PrintProgram(2 * kSingleTapeSize, ptr, kSingleTapeSize,
+                           ptr + kSingleTapeSize, kSingleTapeSize);
+  };
+
+  if (params.save_to.has_value()) {
+    CHECK(mkdir(params.save_to->c_str(),
+                S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != -1 ||
+          errno == EEXIST);
+  }
+
+  if (load_file) {
+    CHECK(fread(state.soup.data(), 1, num_programs * kSingleTapeSize,
+                load_file) == num_programs * kSingleTapeSize);
+    fclose(load_file);
+    programs.Write(state.soup.data(), num_programs * kSingleTapeSize);
+  }
+
+  DeviceMemory<uint32_t> shuf_idx(num_programs);
+
+  std::vector<uint32_t> &s = state.shuffle_idx;
+
+  for (size_t i = 0; i < num_programs; i++) {
+    s[i] = i;
+  }
+
+  Synchronize();
+
+  auto do_shuffle = [&](uint32_t *begin, uint32_t *end, uint64_t base_seed) {
+    size_t len = end - begin;
+    for (size_t i = len; i-- > 0;) {
+      size_t j = SplitMix64(seed(epoch * len + i)) % (i + 1);
+      std::swap(begin[i], begin[j]);
+    }
+  };
+
+  std::vector<uint8_t> brotlified_data(
+      BrotliEncoderMaxCompressedSize(num_programs * kSingleTapeSize));
+
+  size_t num_runs = 0;
+  auto start = std::chrono::high_resolution_clock::now();
+  auto simulation_start = std::chrono::high_resolution_clock::now();
+  for (;; epoch++) {
+    // Shuffle indices.
+    if (!params.allowed_interactions.empty()) {
+      for (size_t i = 0; i < num_programs; i++) {
+        auto &interact = params.allowed_interactions;
+        if (interact.size() <= i || interact[i].empty()) {
+          s[i] = i;
+          continue;
+        }
+        size_t idx = seed(epoch) ^ seed(i);
+        s[i] = interact[i][idx % interact[i].size()];
+      }
+    } else if (params.permute_programs) {
+      for (size_t i = 0; i < num_programs; i++) {
+        s[i] = i;
+      }
+      if (params.fixed_shuffle) {
+        size_t flip = epoch & 1;
+        size_t max_pow2 = 31 - __builtin_clz(num_programs);
+        size_t offset = (1 << (epoch % max_pow2 + 1)) - 1;
+        for (size_t i = 0; i < num_programs; i++) {
+          s[i] = ((i * offset) % num_programs) ^ flip;
+        }
+      } else {
+        do_shuffle(s.data(), s.data() + s.size(), epoch);
+      }
+    } else if (epoch % 2 == 1) {
+      for (size_t i = 0; i < num_programs; i++) {
+        s[i] = i;
+      }
+    } else {
+      for (size_t i = 0; i < num_programs; i++) {
+        s[i] = i == 0 ? num_programs - 1 : i - 1;
+      }
+    }
+
+    shuf_idx.Write(s.data(), num_programs);
+
+    RUN(num_programs / programs_denominator, kNumThreads,
+        MutateAndRunPrograms<Language>, programs.Get(), programs_next.Get(),
+        shuf_idx.Get(), seed(epoch), params.mutation_prob, insn_count.Get(),
+        num_programs, !params.allowed_interactions.empty());
+    std::swap(programs.data, programs_next.data);
+    num_runs +=
+        params.allowed_interactions.empty() ? num_programs / 2 : num_programs;
+
+    if (epoch % params.callback_interval == 0) {
+      auto stop = std::chrono::high_resolution_clock::now();
+      Synchronize();
+      unsigned long long insn;
+      insn_count.Read(&insn, 1);
+      total_ops += insn;
+      programs.Read(state.soup.data(), num_programs * kSingleTapeSize);
+      Synchronize();
+      size_t brotli_size = brotlified_data.size();
+      BrotliEncoderCompress(2, 24, BROTLI_MODE_GENERIC, state.soup.size(),
+                            state.soup.data(), &brotli_size,
+                            brotlified_data.data());
+      float elapsed_s =
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
+              .count() *
+          1e-6;
+      float mops_s = insn * 1.0 / elapsed_s * 1e-6;
+      float sim_elapsed_s =
+          std::chrono::duration_cast<std::chrono::microseconds>(
+              stop - simulation_start)
+              .count() *
+          1e-6;
+
+      size_t counts[256] = {};
+      for (auto c : state.soup) {
+        counts[c]++;
+      }
+
+      std::vector<uint8_t> sorted(256);
+      double h0 = 0;
+      for (size_t i = 0; i < 256; i++) {
+        sorted[i] = i;
+        double frac = counts[i] * 1.0 / state.soup.size();
+        h0 -= counts[i] ? frac * std::log2(frac) : 0.0;
+      }
+      std::sort(sorted.begin(), sorted.end(), [&](uint8_t a, uint8_t b) {
+        return std::make_pair(counts[b], b) < std::make_pair(counts[a], a);
+      });
+
+      double brotli_bpb = brotli_size * 8.0 / (num_programs * kSingleTapeSize);
+
+      state.elapsed_s = sim_elapsed_s;
+      state.total_ops = total_ops;
+      state.mops_s = mops_s;
+      state.epoch = epoch + 1;
+      state.ops_per_run = insn * 1.0 / num_runs;
+      state.brotli_size = brotli_size;
+      state.brotli_bpb = brotli_bpb;
+      state.bytes_per_prog = brotli_size * 1.0 / num_programs;
+      state.h0 = h0;
+      state.higher_entropy = h0 - brotli_bpb;
+
+      for (size_t i = 0; i < state.frequent_bytes.size(); i++) {
+        uint8_t c = sorted[i];
+        char chmem[32];
+        state.frequent_bytes[i].first = Language::MapChar(c, chmem);
+        state.frequent_bytes[i].second =
+            counts[(int)c] * 1.0 / state.soup.size();
+      }
+      for (size_t i = 0; i < state.uncommon_bytes.size(); i++) {
+        uint8_t c = sorted[256 - state.uncommon_bytes.size() + i];
+        char chmem[32];
+        state.uncommon_bytes[i].first = Language::MapChar(c, chmem);
+        state.uncommon_bytes[i].second =
+            counts[(int)c] * 1.0 / state.soup.size();
+      }
+
+      if (params.save_to.has_value() && (epoch % params.save_interval == 0)) {
+        std::vector<char> save_path(params.save_to->size() + 20);
+        sprintf(save_path.data(), "%s/%015zu.dat", params.save_to->c_str(),
+                epoch);
+        FILE *f = CheckFopen(save_path.data(), "w");
+        size_t epoch_to_save = epoch + 1;
+        fwrite(&reset_index, sizeof(reset_index), 1, f);
+        fwrite(&num_programs, sizeof(num_programs), 1, f);
+        fwrite(&epoch_to_save, sizeof(epoch), 1, f);
+        fwrite(state.soup.data(), 1, state.soup.size(), f);
+        fclose(f);
+      }
+      if (callback(state)) {
+        break;
+      }
+      num_runs = 0;
+      start = std::chrono::high_resolution_clock::now();
+      insn_count.Write(&zero, 1);
+    }
+
+    if (params.reset_interval.has_value() &&
+        epoch % *params.reset_interval == 0) {
+      RUN(num_programs / kNumThreads, kNumThreads, InitPrograms<Language>,
+          seed(reset_index), num_programs, programs.Get(), params.zero_init);
+      reset_index++;
+    }
+  }
+}
