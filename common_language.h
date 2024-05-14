@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-#include "common.h"
 #include <cstring>
 #include <functional>
+
+#include "common.h"
 #ifdef __CUDACC__
 #include <cuda_device_runtime_api.h>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
 
-#define CUCHECK(op)                                                            \
-  {                                                                            \
-    cudaError_t cudaerr = op;                                                  \
-    if (cudaerr != cudaSuccess) {                                              \
-      printf("%s failed with error: %s\n", #op, cudaGetErrorString(cudaerr));  \
-      exit(1);                                                                 \
-    }                                                                          \
+#define CUCHECK(op)                                                           \
+  {                                                                           \
+    cudaError_t cudaerr = op;                                                 \
+    if (cudaerr != cudaSuccess) {                                             \
+      printf("%s failed with error: %s\n", #op, cudaGetErrorString(cudaerr)); \
+      exit(1);                                                                \
+    }                                                                         \
   }
 
 constexpr size_t kWarpSize = 32;
@@ -54,7 +55,8 @@ __inline__ __device__ void IncreaseInsnCount(unsigned long long count,
 
 inline void Synchronize() { CUCHECK(cudaDeviceSynchronize()); }
 
-template <typename T> struct DeviceMemory {
+template <typename T>
+struct DeviceMemory {
   T *data;
   DeviceMemory(size_t size) { CUCHECK(cudaMalloc(&data, size * sizeof(T))); }
   void Write(const T *host, size_t count) {
@@ -89,7 +91,8 @@ inline void IncreaseInsnCount(unsigned long long count,
 
 inline void Synchronize() {}
 
-template <typename T> struct DeviceMemory {
+template <typename T>
+struct DeviceMemory {
   T *data;
   DeviceMemory(size_t size) { data = (T *)malloc(size * sizeof(T)); }
   void Write(const T *host, size_t count) {
@@ -101,19 +104,19 @@ template <typename T> struct DeviceMemory {
   DeviceMemory(DeviceMemory &) = delete;
 };
 
-#define RUN(grid, block, fun, ...)                                             \
-  _Pragma("omp parallel for") for (size_t _threadcnt = 0;                      \
-                                   _threadcnt < grid * block; _threadcnt++) {  \
-    IndexThreadLocal() = _threadcnt;                                           \
-    fun(__VA_ARGS__);                                                          \
+#define RUN(grid, block, fun, ...)                                            \
+  _Pragma("omp parallel for") for (size_t _threadcnt = 0;                     \
+                                   _threadcnt < grid * block; _threadcnt++) { \
+    IndexThreadLocal() = _threadcnt;                                          \
+    fun(__VA_ARGS__);                                                         \
   }
 
 #endif
 
-#define CHECK(op)                                                              \
-  if (!(op)) {                                                                 \
-    printf("%s is false\n", #op);                                              \
-    exit(1);                                                                   \
+#define CHECK(op)                 \
+  if (!(op)) {                    \
+    printf("%s is false\n", #op); \
+    exit(1);                      \
   }
 
 inline __device__ __host__ uint64_t SplitMix64(uint64_t seed) {
@@ -128,6 +131,7 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
                              uint8_t *programs, bool zero_init) {
   int index = GetIndex();
   auto prog = programs + index * kSingleTapeSize;
+  if (index >= num_programs) return;
   if (zero_init) {
     for (size_t i = 0; i < kSingleTapeSize; i++) {
       prog[i] = 0;
@@ -142,17 +146,17 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
 }
 
 template <typename Language>
-__global__ void
-MutateAndRunPrograms(const uint8_t *programs, uint8_t *programs_out,
-                     const uint32_t *shuf_idx, size_t seed,
-                     uint32_t mutation_prob, unsigned long long *insn_count,
-                     size_t num_programs, bool use_interaction_pattern) {
+__global__ void MutateAndRunPrograms(
+    const uint8_t *programs, uint8_t *programs_out, const uint32_t *shuf_idx,
+    size_t seed, uint32_t mutation_prob, unsigned long long *insn_count,
+    size_t num_programs, bool use_interaction_pattern) {
   int index = GetIndex();
   uint8_t tape[2 * kSingleTapeSize] = {};
   uint32_t p1, p2;
   bool flipped =
       SplitMix64((num_programs * seed + index) * kSingleTapeSize * 2 - 1) & 1;
   if (use_interaction_pattern) {
+    if (index >= num_programs) return;
     if (flipped) {
       p2 = index;
       p1 = shuf_idx[index];
@@ -161,6 +165,7 @@ MutateAndRunPrograms(const uint8_t *programs, uint8_t *programs_out,
       p2 = shuf_idx[index];
     }
   } else {
+    if (2 * index >= num_programs) return;
     p1 = shuf_idx[2 * index];
     p2 = shuf_idx[2 * index + 1];
   }
@@ -242,8 +247,6 @@ void Simulation<Language>::RunSimulation(
   size_t programs_denominator =
       params.allowed_interactions.empty() ? 2 * kNumThreads : kNumThreads;
 
-  CHECK(num_programs % programs_denominator == 0);
-
   DeviceMemory<uint8_t> programs(kSingleTapeSize * num_programs);
   DeviceMemory<uint8_t> programs_next(kSingleTapeSize * num_programs);
   DeviceMemory<unsigned long long> insn_count(1);
@@ -252,8 +255,9 @@ void Simulation<Language>::RunSimulation(
     return SplitMix64(SplitMix64(params.seed) ^ SplitMix64(seed2));
   };
 
-  RUN(num_programs / kNumThreads, kNumThreads, InitPrograms<Language>, seed(0),
-      num_programs, programs.Get(), params.zero_init);
+  RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
+      InitPrograms<Language>, seed(0), num_programs, programs.Get(),
+      params.zero_init);
 
   if (initial_program.has_value()) {
     std::string parsed = Language::Parse(*initial_program);
@@ -352,10 +356,10 @@ void Simulation<Language>::RunSimulation(
 
     shuf_idx.Write(s.data(), num_programs);
 
-    RUN(num_programs / programs_denominator, kNumThreads,
-        MutateAndRunPrograms<Language>, programs.Get(), programs_next.Get(),
-        shuf_idx.Get(), seed(epoch), params.mutation_prob, insn_count.Get(),
-        num_programs, !params.allowed_interactions.empty());
+    RUN((num_programs + programs_denominator - 1) / programs_denominator,
+        kNumThreads, MutateAndRunPrograms<Language>, programs.Get(),
+        programs_next.Get(), shuf_idx.Get(), seed(epoch), params.mutation_prob,
+        insn_count.Get(), num_programs, !params.allowed_interactions.empty());
     std::swap(programs.data, programs_next.data);
     num_runs +=
         params.allowed_interactions.empty() ? num_programs / 2 : num_programs;

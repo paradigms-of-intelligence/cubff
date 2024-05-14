@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "common.h"
 #include <assert.h>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -25,9 +25,11 @@
 #include <type_traits>
 #include <vector>
 
+#include "common.h"
+
 namespace flags {
 class BaseFlag {
-public:
+ public:
   static std::unordered_map<std::string, BaseFlag *> *reg() {
     static std::unordered_map<std::string, BaseFlag *> r;
     return &r;
@@ -77,24 +79,29 @@ public:
   }
 };
 
-template <typename T> struct Types;
+template <typename T>
+struct Types;
 
-template <> struct Types<std::string> {
+template <>
+struct Types<std::string> {
   static std::string Parse(const char *v) { return v; }
   static void Print(const std::string &v) { fprintf(stderr, "%s", v.c_str()); }
 };
 
-template <> struct Types<double> {
+template <>
+struct Types<double> {
   static double Parse(const char *v) { return std::stod(v); }
   static void Print(const double &v) { fprintf(stderr, "%8.5f", v); }
 };
 
-template <> struct Types<size_t> {
+template <>
+struct Types<size_t> {
   static size_t Parse(const char *v) { return std::stoul(v); }
   static void Print(const size_t &v) { fprintf(stderr, "%zu", v); }
 };
 
-template <typename T> struct Types<std::optional<T>> {
+template <typename T>
+struct Types<std::optional<T>> {
   static std::optional<T> Parse(const char *v) { return Types<T>::Parse(v); }
   static void Print(const std::optional<T> &v) {
     if (v.has_value()) {
@@ -105,11 +112,14 @@ template <typename T> struct Types<std::optional<T>> {
   }
 };
 
-template <typename T> class Flag : public BaseFlag {
-public:
+template <typename T>
+class Flag : public BaseFlag {
+ public:
   Flag(const char *opt, const char *noopt, T default_value,
        const char *description)
-      : opt_(opt), noopt_(noopt), value_(std::move(default_value)),
+      : opt_(opt),
+        noopt_(noopt),
+        value_(std::move(default_value)),
         description_(description) {
     (*reg())[opt] = this;
     if constexpr (std::is_same_v<bool, T>) {
@@ -144,18 +154,19 @@ public:
     }
   }
 
-private:
+ private:
   const char *opt_;
   const char *noopt_;
   T value_;
   const char *description_;
 };
 
-#define FLAG(type, name, default_value, description)                           \
-  flags::Flag<type> FLAGS_##name("--" #name, "--no" #name, default_value,      \
+#define FLAG(type, name, default_value, description)                      \
+  flags::Flag<type> FLAGS_##name("--" #name, "--no" #name, default_value, \
                                  description);
 
-template <typename T> const T &GetFlag(const Flag<T> &flag) {
+template <typename T>
+const T &GetFlag(const Flag<T> &flag) {
   return flag.Get();
 }
 
@@ -163,7 +174,7 @@ void ParseCommandLine(int argc, char **argv) {
   BaseFlag::ParseCommandLine(argc, argv);
 }
 
-} // namespace flags
+}  // namespace flags
 
 FLAG(std::optional<std::string>, run, std::nullopt, "run a program");
 FLAG(size_t, run_steps, 32 * 1024, "max number of steps for running a program");
@@ -198,6 +209,7 @@ FLAG(std::string, draw_to, "",
 FLAG(std::string, draw_to_2d, "",
      "directory to save 2d-drawn frames to (must exist, and num must "
      "be a square number)");
+FLAG(size_t, grid_width_2d, 0, "width of the 2d grid");
 
 int main(int argc, char **argv) {
   flags::ParseCommandLine(argc, argv);
@@ -243,13 +255,21 @@ int main(int argc, char **argv) {
       (num_columns_1d * (kSingleTapeSize + kColumnPadding1d) -
        kColumnPadding1d));
 
-  size_t grid_size_2d = 0;
+  size_t grid_width_2d = 0;
   std::string draw_to_2d = GetFlag(FLAGS_draw_to_2d);
   if (!draw_to_2d.empty()) {
-    grid_size_2d = std::sqrt(params.num_programs);
-    if (grid_size_2d * grid_size_2d != params.num_programs) {
-      fprintf(stderr, "number of programs must be a square\n");
-      return 1;
+    if (GetFlag(FLAGS_grid_width_2d)) {
+      grid_width_2d = GetFlag(FLAGS_grid_width_2d);
+      if (params.num_programs % grid_width_2d != 0) {
+        fprintf(stderr, "grid width must divide num_programs\n");
+        return 1;
+      }
+    } else {
+      grid_width_2d = std::sqrt(params.num_programs);
+      if (grid_width_2d * grid_width_2d != params.num_programs) {
+        fprintf(stderr, "number of programs must be a square\n");
+        return 1;
+      }
     }
   }
   static_assert(kSingleTapeSize == 64, "fix drawing if tapes are not 64 bytes");
@@ -298,7 +318,6 @@ int main(int argc, char **argv) {
   if (run_flag.has_value()) {
     RunSingleProgram(lang, run_flag.value(), GetFlag(FLAGS_run_steps), debug);
   } else {
-
     FILE *logfile = nullptr;
     if (log_to.has_value()) {
       logfile = CheckFopen(log_to->c_str(), "w");
@@ -310,13 +329,14 @@ int main(int argc, char **argv) {
       if (state.epoch % clear_interval == 1) {
         printf("\033[2J\033[H");
       }
-      printf("\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
-             "MOps/s: %12.3f Epochs: %13zu ops/prog/epoch: %10.3f\n"
-             "Brotli size: %10zu Brotli bpb: %23.4f bytes/prog: %12.4f     H0: "
-             "%13.4f higher entropy: %10.6f\n",
-             state.elapsed_s, state.total_ops, state.mops_s, state.epoch,
-             state.ops_per_run, state.brotli_size, state.brotli_bpb,
-             state.bytes_per_prog, state.h0, state.higher_entropy);
+      printf(
+          "\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
+          "MOps/s: %12.3f Epochs: %13zu ops/prog/epoch: %10.3f\n"
+          "Brotli size: %10zu Brotli bpb: %23.4f bytes/prog: %12.4f     H0: "
+          "%13.4f higher entropy: %10.6f\n",
+          state.elapsed_s, state.total_ops, state.mops_s, state.epoch,
+          state.ops_per_run, state.brotli_size, state.brotli_bpb,
+          state.bytes_per_prog, state.h0, state.higher_entropy);
 
       for (auto [s, f] : state.frequent_bytes) {
         printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
@@ -372,10 +392,10 @@ int main(int argc, char **argv) {
       if (!draw_to_2d.empty()) {
         static_assert(kSingleTapeSize == 64,
                       "fix drawing if tapes are not 64 bytes");
-        size_t xs = grid_size_2d * 8;
+        size_t xs = grid_width_2d * 8;
         for (size_t i = 0; i < params.num_programs; i++) {
-          size_t x = i % grid_size_2d;
-          size_t y = i / grid_size_2d;
+          size_t x = i % grid_width_2d;
+          size_t y = i / grid_width_2d;
           for (size_t j = 0; j < kSingleTapeSize; j++) {
             size_t ix = j % 8;
             size_t iy = j / 8;
@@ -385,7 +405,8 @@ int main(int argc, char **argv) {
                 3);
           }
         }
-        write_ppm(draw_to_2d, state.epoch, xs, xs, draw_buf_2d);
+        write_ppm(draw_to_2d, state.epoch, xs,
+                  params.num_programs / grid_width_2d * 8, draw_buf_2d);
       }
 
       if (max_epochs.has_value() && state.epoch > *max_epochs) {

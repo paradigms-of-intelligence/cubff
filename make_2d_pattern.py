@@ -16,13 +16,14 @@ import sys
 
 RANGE = 2
 
-grid_size = int(sys.argv[1])
+grid_width = int(sys.argv[1])
+grid_height = int(sys.argv[2]) if len(sys.argv) >= 3 else grid_width
 
-for i in range(grid_size):
-    for j in range(grid_size):
+for i in range(grid_height):
+    for j in range(grid_width):
         for ii in range(-RANGE, RANGE+1):
             for jj in range(-RANGE, RANGE+1):
                 iii = i + ii
                 jjj = j + jj
-                if iii >= 0 and iii < 128 and jjj >= 0 and jjj < 128 and (i != iii or j != jjj):
-                    print(i*128+j, iii*128+jjj)
+                if iii >= 0 and iii < grid_height and jjj >= 0 and jjj < grid_width and (i != iii or j != jjj):
+                    print(i*grid_width+j, iii*grid_width+jjj)
