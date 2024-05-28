@@ -36,6 +36,7 @@ struct Bff {
       byte_colors[i] = {v, v, v};
     }
     byte_colors[0] = {255,0,0};
+    byte_colors['['] = byte_colors[']'] = {0,192,0};
     byte_colors['+'] = byte_colors['-'] = {200,0,200};
     byte_colors['.'] = byte_colors[','] = {200,0,200};
     byte_colors['<'] = byte_colors['>'] = {0,128,220};
