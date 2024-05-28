@@ -32,10 +32,14 @@ struct Bff {
   static void
   InitByteColors(std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
     for (size_t i = 0; i < 256; i++) {
-      byte_colors[i][0] = i;
-      byte_colors[i][1] = isin("<>{}+-.,[]", i) ? 255 : 0;
-      byte_colors[i][2] = 255 - i;
+      const uint8_t v = 192 + i/4;
+      byte_colors[i] = {v, v, v};
     }
+    byte_colors[0] = {255,0,0};
+    byte_colors['+'] = byte_colors['-'] = {200,0,200};
+    byte_colors['.'] = byte_colors[','] = {200,0,200};
+    byte_colors['<'] = byte_colors['>'] = {0,128,220};
+    byte_colors['{'] = byte_colors['}'] = {0,128,220};
   }
 
   static std::string Parse(std::string bff) {

@@ -399,10 +399,16 @@ int main(int argc, char **argv) {
           for (size_t j = 0; j < kSingleTapeSize; j++) {
             size_t ix = j % 8;
             size_t iy = j / 8;
+            size_t p = ((y * 8 + iy) * xs + x * 8 + ix) * 3;
             memcpy(
-                &draw_buf_2d[((y * 8 + iy) * xs + x * 8 + ix) * 3],
+                &draw_buf_2d[p],
                 state.byte_colors[state.soup[i * kSingleTapeSize + j]].data(),
                 3);
+            if (ix==0 || iy==0) {
+              for (size_t c = 0; c < 3; ++c) {
+                draw_buf_2d[p+c] = std::max(draw_buf_2d[p+c] - 32, 0);
+              }
+            }
           }
         }
         write_ppm(draw_to_2d, state.epoch, xs,
