@@ -433,8 +433,8 @@ void Simulation<Language>::RunSimulation(
 
       if (params.save_to.has_value() && (epoch % params.save_interval == 0)) {
         std::vector<char> save_path(params.save_to->size() + 20);
-        sprintf(save_path.data(), "%s/%015zu.dat", params.save_to->c_str(),
-                epoch);
+        snprintf(save_path.data(), save_path.size(), "%s/%010zu.dat", 
+                params.save_to->c_str(), epoch);
         FILE *f = CheckFopen(save_path.data(), "w");
         size_t epoch_to_save = epoch + 1;
         fwrite(&reset_index, sizeof(reset_index), 1, f);

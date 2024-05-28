@@ -105,8 +105,8 @@ inline FILE *CheckFopen(const char *f, const char *mode) {
   FILE *out = fopen(f, mode);
   char buf[4096];
   if (out == nullptr) {
-    fprintf(stderr, "Could not open %s: %s\n", f,
-            strerror_r(errno, buf, sizeof(buf)));
+    strerror_r(errno, buf, sizeof(buf));
+    fprintf(stderr, "Could not open %s: %s\n", f, buf);
     exit(1);
   }
   return out;

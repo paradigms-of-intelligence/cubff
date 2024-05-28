@@ -362,8 +362,8 @@ int main(int argc, char **argv) {
                           size_t ys, const std::vector<uint8_t> &data) {
         assert(data.size() == xs * ys * 3);
         std::string out_path(base.size() + 64, 0);
-        out_path.resize(sprintf(out_path.data(), "%s/%012lld.ppm", base.c_str(),
-                                (long long)frame));
+        out_path.resize(snprintf(out_path.data(), out_path.size(), "%s/%012lld.ppm",
+                                base.c_str(), (long long)frame));
         FILE *f = CheckFopen(out_path.c_str(), "w");
         fprintf(f, "P6\n%lld %lld\n255\n", (long long)xs, (long long)ys);
         fwrite(data.data(), 1, data.size(), f);
