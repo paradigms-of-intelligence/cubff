@@ -19,13 +19,35 @@ const char *Forth::name() { return "forthtrivial"; }
 
 void Forth::InitByteColors(
     std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
-  for (size_t i = 0; i < 256; i++) {
-    byte_colors[i][0] = i;
-    byte_colors[i][1] = 0;
-    byte_colors[i][2] = 255 - i;
+  // I/O
+  for (auto i : {0x00, 0x01, 0x02, 0x03, 0x0C, 0x0D}) {
+    byte_colors[i] = {200, 0, 200};
   }
-  for (size_t i = 0; i < 0xE; i++) {
-    byte_colors[i][1] = 128;
+  // Stack manipulation
+  for (auto i : {0x04, 0x05, 0x06, 0x08, 0x09, 0x0A, 0x0B}) {
+    byte_colors[i] = {0, 128, 200};
+  }
+  // Conditional jump
+  byte_colors[0x07] = {255, 0, 0};
+  // Forward jump
+  for (size_t i = 0b10'000000; i < 0b11'000000; i++) {
+    uint8_t v = 128 + (i - 0b10'000000) / 2;
+    byte_colors[i] = {0, v, v};
+  }
+  // Backward jump
+  for (size_t i = 0b11'000000; i < 0b100'000000; i++) {
+    uint8_t v = 128 + (i - 0b11'000000) / 2;
+    byte_colors[i] = {0, 0, v};
+  }
+  // Constant
+  for (size_t i = 0b01'000000; i < 0b10'000000; i++) {
+    uint8_t v = 192 + (i - 0b01'000000) / 2;
+    byte_colors[i] = {v, v, v};
+  }
+  // Comment
+  for (size_t i = 0x0E; i < 0x40; i++) {
+    uint8_t v = (i - 0x0E) / 2;
+    byte_colors[i] = {v, v, v};
   }
 }
 
