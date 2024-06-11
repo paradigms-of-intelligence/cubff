@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-#include "brotli/encode.h"
+#include <errno.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -23,21 +28,18 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <errno.h>
 #include <functional>
 #include <optional>
-#include <stdio.h>
 #include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <vector>
 
-#define REGISTER(L)                                                            \
-  static void f() __attribute__((constructor));                                \
-  static void f() {                                                            \
-    RegisterLanguage(L::name(), &Simulation<L>::RunSingleProgram,              \
-                     &Simulation<L>::RunSimulation);                           \
+#include "brotli/encode.h"
+
+#define REGISTER(L)                                               \
+  static void f() __attribute__((constructor));                   \
+  static void f() {                                               \
+    RegisterLanguage(L::name(), &Simulation<L>::RunSingleProgram, \
+                     &Simulation<L>::RunSimulation);              \
   }
 
 constexpr int kSingleTapeSize = 64;
@@ -45,7 +47,7 @@ constexpr int kSingleTapeSize = 64;
 struct SimulationParams {
   size_t num_programs = 128 * 1024;
   size_t seed = 0;
-  uint32_t mutation_prob = 1 << 18; // denominator 1<<30.
+  uint32_t mutation_prob = 1 << 18;  // denominator 1<<30.
   std::optional<size_t> reset_interval = std::nullopt;
   std::optional<std::string> load_from = std::nullopt;
   std::optional<std::string> save_to = std::nullopt;
@@ -76,13 +78,14 @@ struct SimulationState {
   std::function<void(size_t)> print_program;
 };
 
-template <typename Language> struct Simulation {
+template <typename Language>
+struct Simulation {
   static void RunSingleProgram(std::string program, size_t stepcount,
                                bool debug);
-  static void
-  RunSimulation(const SimulationParams &params,
-                std::optional<std::string> initial_program,
-                std::function<bool(const SimulationState &)> callback);
+  static void RunSimulation(
+      const SimulationParams &params,
+      std::optional<std::string> initial_program,
+      std::function<bool(const SimulationState &)> callback);
 };
 
 using runsingle_t = void (*)(std::string, size_t, bool);
@@ -93,7 +96,8 @@ using runsimulation_t = void (*)(const SimulationParams &,
 void RegisterLanguage(const char *lang, runsingle_t runsingle,
                       runsimulation_t runsimulation);
 
-template <typename Language> void Register() {}
+template <typename Language>
+void Register() {}
 
 void RunSingleProgram(const std::string &language, std::string program,
                       size_t stepcount, bool debug);
@@ -105,8 +109,8 @@ inline FILE *CheckFopen(const char *f, const char *mode) {
   FILE *out = fopen(f, mode);
   char buf[4096];
   if (out == nullptr) {
-    strerror_r(errno, buf, sizeof(buf));
-    fprintf(stderr, "Could not open %s: %s\n", f, buf);
+    fprintf(stderr, "Could not open %s: %s\n", f,
+            strerror_r(errno, buf, sizeof(buf)));
     exit(1);
   }
   return out;
