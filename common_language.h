@@ -146,29 +146,15 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
 }
 
 template <typename Language>
-__global__ void MutateAndRunPrograms(
-    const uint8_t *programs, uint8_t *programs_out, const uint32_t *shuf_idx,
-    size_t seed, uint32_t mutation_prob, unsigned long long *insn_count,
-    size_t num_programs, bool use_interaction_pattern) {
+__global__ void MutateAndRunPrograms(uint8_t *programs,
+                                     const uint32_t *shuf_idx, size_t seed,
+                                     uint32_t mutation_prob,
+                                     unsigned long long *insn_count,
+                                     size_t num_programs, size_t num_indices) {
   int index = GetIndex();
   uint8_t tape[2 * kSingleTapeSize] = {};
-  uint32_t p1, p2;
-  bool flipped =
-      SplitMix64((num_programs * seed + index) * kSingleTapeSize * 2 - 1) & 1;
-  if (use_interaction_pattern) {
-    if (index >= num_programs) return;
-    if (flipped) {
-      p2 = index;
-      p1 = shuf_idx[index];
-    } else {
-      p1 = index;
-      p2 = shuf_idx[index];
-    }
-  } else {
-    if (2 * index >= num_programs) return;
-    p1 = shuf_idx[2 * index];
-    p2 = shuf_idx[2 * index + 1];
-  }
+  uint32_t p1 = shuf_idx[2 * index];
+  uint32_t p2 = shuf_idx[2 * index + 1];
   for (size_t i = 0; i < kSingleTapeSize; i++) {
     tape[i] = programs[p1 * kSingleTapeSize + i];
     tape[i + kSingleTapeSize] = programs[p2 * kSingleTapeSize + i];
@@ -184,17 +170,14 @@ __global__ void MutateAndRunPrograms(
   }
   bool debug = false;
   size_t ops;
-  ops = Language::Evaluate(tape, 8 * 1024, debug);
-  if (!use_interaction_pattern) {
-    for (size_t i = 0; i < kSingleTapeSize; i++) {
-      programs_out[p1 * kSingleTapeSize + i] = tape[i];
-      programs_out[p2 * kSingleTapeSize + i] = tape[i + kSingleTapeSize];
-    }
+  if (index < num_indices) {
+    ops = Language::Evaluate(tape, 8 * 1024, debug);
   } else {
-    for (size_t i = 0; i < kSingleTapeSize; i++) {
-      programs_out[index * kSingleTapeSize + i] =
-          tape[flipped ? i + kSingleTapeSize : i];
-    }
+    ops = 0;
+  }
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    programs[p1 * kSingleTapeSize + i] = tape[i];
+    programs[p2 * kSingleTapeSize + i] = tape[i + kSingleTapeSize];
   }
   IncreaseInsnCount(ops, insn_count);
 }
@@ -244,12 +227,10 @@ void Simulation<Language>::RunSimulation(
     CHECK(fread(&epoch, sizeof(epoch), 1, load_file) == 1);
   }
 
-  size_t programs_denominator =
-      params.allowed_interactions.empty() ? 2 * kNumThreads : kNumThreads;
-
   DeviceMemory<uint8_t> programs(kSingleTapeSize * num_programs);
-  DeviceMemory<uint8_t> programs_next(kSingleTapeSize * num_programs);
   DeviceMemory<unsigned long long> insn_count(1);
+
+  CHECK(num_programs % 2 == 0);
 
   auto seed = [&](size_t seed2) {
     return SplitMix64(SplitMix64(params.seed) ^ SplitMix64(seed2));
@@ -302,6 +283,9 @@ void Simulation<Language>::RunSimulation(
     s[i] = i;
   }
 
+  std::vector<uint32_t> shuffle_tmp_buf(num_programs);
+  std::vector<char> used_program(num_programs);
+
   Synchronize();
 
   auto do_shuffle = [&](uint32_t *begin, uint32_t *end, uint64_t base_seed) {
@@ -319,16 +303,36 @@ void Simulation<Language>::RunSimulation(
   auto start = std::chrono::high_resolution_clock::now();
   auto simulation_start = std::chrono::high_resolution_clock::now();
   for (;; epoch++) {
+    size_t num_indices = num_programs / 2;
     // Shuffle indices.
     if (!params.allowed_interactions.empty()) {
       for (size_t i = 0; i < num_programs; i++) {
+        shuffle_tmp_buf[i] = i;
+        used_program[i] = false;
+      }
+      do_shuffle(shuffle_tmp_buf.data(),
+                 shuffle_tmp_buf.data() + shuffle_tmp_buf.size(), epoch);
+      num_indices = 0;
+      for (size_t i : shuffle_tmp_buf) {
         auto &interact = params.allowed_interactions;
         if (interact.size() <= i || interact[i].empty()) {
-          s[i] = i;
           continue;
         }
-        size_t idx = seed(epoch) ^ seed(i);
-        s[i] = interact[i][idx % interact[i].size()];
+        size_t idx = seed(seed(epoch) ^ seed(i)) % interact[i].size();
+        size_t neigh = interact[i][idx];
+        if (used_program[i] || used_program[neigh]) {
+          continue;
+        }
+        used_program[i] = used_program[neigh] = true;
+        s[num_indices * 2] = i;
+        s[num_indices * 2 + 1] = neigh;
+        num_indices++;
+      }
+      size_t idx = num_indices * 2;
+      for (size_t i = 0; i < num_programs; i++) {
+        if (!used_program[i]) {
+          s[idx++] = i;
+        }
       }
     } else if (params.permute_programs) {
       for (size_t i = 0; i < num_programs; i++) {
@@ -356,13 +360,11 @@ void Simulation<Language>::RunSimulation(
 
     shuf_idx.Write(s.data(), num_programs);
 
-    RUN((num_programs + programs_denominator - 1) / programs_denominator,
-        kNumThreads, MutateAndRunPrograms<Language>, programs.Get(),
-        programs_next.Get(), shuf_idx.Get(), seed(epoch), params.mutation_prob,
-        insn_count.Get(), num_programs, !params.allowed_interactions.empty());
-    std::swap(programs.data, programs_next.data);
-    num_runs +=
-        params.allowed_interactions.empty() ? num_programs / 2 : num_programs;
+    RUN((num_programs + 2 * kNumThreads - 1) / (2*kNumThreads), kNumThreads,
+        MutateAndRunPrograms<Language>, programs.Get(),
+        shuf_idx.Get(), seed(epoch), params.mutation_prob, insn_count.Get(),
+        num_programs, num_indices);
+    num_runs += num_indices;
 
     if (epoch % params.callback_interval == 0) {
       auto stop = std::chrono::high_resolution_clock::now();
@@ -433,8 +435,8 @@ void Simulation<Language>::RunSimulation(
 
       if (params.save_to.has_value() && (epoch % params.save_interval == 0)) {
         std::vector<char> save_path(params.save_to->size() + 20);
-        snprintf(save_path.data(), save_path.size(), "%s/%010zu.dat", 
-                params.save_to->c_str(), epoch);
+        snprintf(save_path.data(), save_path.size(), "%s/%010zu.dat",
+                 params.save_to->c_str(), epoch);
         FILE *f = CheckFopen(save_path.data(), "w");
         size_t epoch_to_save = epoch + 1;
         fwrite(&reset_index, sizeof(reset_index), 1, f);
