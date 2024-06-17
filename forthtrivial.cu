@@ -32,12 +32,12 @@ void Forth::InitByteColors(
   // Forward jump
   for (size_t i = 0b10'000000; i < 0b11'000000; i++) {
     uint8_t v = 128 + (i - 0b10'000000) / 2;
-    byte_colors[i] = {0, v, v};
+    byte_colors[i] = {200, v, v};
   }
   // Backward jump
   for (size_t i = 0b11'000000; i < 0b100'000000; i++) {
     uint8_t v = 128 + (i - 0b11'000000) / 2;
-    byte_colors[i] = {0, 0, v};
+    byte_colors[i] = {0, 200, v};
   }
   // Constant
   for (size_t i = 0b01'000000; i < 0b10'000000; i++) {
@@ -46,7 +46,7 @@ void Forth::InitByteColors(
   }
   // Comment
   for (size_t i = 0x0E; i < 0x40; i++) {
-    uint8_t v = (i - 0x0E) / 2;
+    uint8_t v = (i - 0x0E) / 2 + 128;
     byte_colors[i] = {v, v, v};
   }
 }
