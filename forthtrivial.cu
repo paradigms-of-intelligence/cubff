@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
+
 #include "forth.inc.h"
 
 namespace {
@@ -19,35 +21,45 @@ const char *Forth::name() { return "forthtrivial"; }
 
 void Forth::InitByteColors(
     std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
+  auto scale_color = [](std::array<uint8_t, 3> &color, size_t offset,
+                        size_t num) {
+    float darken_amount = offset * 0.2f / (num - 1);
+    float multiplier = 1.0f - darken_amount;
+    for (size_t c = 0; c < 3; c++) {
+      color[c] =
+          std::round(std::min(255.0f, std::max(0.0f, multiplier * color[c])));
+    }
+  };
+
   // I/O
   for (auto i : {0x00, 0x01, 0x02, 0x03, 0x0C, 0x0D}) {
-    byte_colors[i] = {200, 0, 200};
+    byte_colors[i] = {0x73, 0x01, 0xce};
   }
   // Stack manipulation
   for (auto i : {0x04, 0x05, 0x06, 0x08, 0x09, 0x0A, 0x0B}) {
-    byte_colors[i] = {0, 128, 200};
+    byte_colors[i] = {0x4e, 0x10, 0x01};
   }
   // Conditional jump
-  byte_colors[0x07] = {255, 0, 0};
+  byte_colors[0x07] = {0x00, 0x00, 0x00};
   // Forward jump
   for (size_t i = 0b10'000000; i < 0b11'000000; i++) {
-    uint8_t v = 128 + (i - 0b10'000000) / 2;
-    byte_colors[i] = {200, v, v};
+    byte_colors[i] = {0x94, 0xd9, 0xff};
+    scale_color(byte_colors[i], i - 0b10'000000, 0b1'000000);
   }
   // Backward jump
   for (size_t i = 0b11'000000; i < 0b100'000000; i++) {
-    uint8_t v = 128 + (i - 0b11'000000) / 2;
-    byte_colors[i] = {0, 200, v};
+    byte_colors[i] = {0xff, 0x77, 0x7d};
+    scale_color(byte_colors[i], i - 0b11'000000, 0b1'000000);
   }
   // Constant
   for (size_t i = 0b01'000000; i < 0b10'000000; i++) {
-    uint8_t v = 192 + (i - 0b01'000000) / 2;
-    byte_colors[i] = {v, v, v};
+    byte_colors[i] = {0xff, 0xff, 0xff};
+    scale_color(byte_colors[i], i - 0b1'000000, 0b1'000000);
   }
   // Comment
   for (size_t i = 0x0E; i < 0x40; i++) {
-    uint8_t v = (i - 0x0E) / 2 + 128;
-    byte_colors[i] = {v, v, v};
+    byte_colors[i] = {0x02, 0x8a, 0x37};
+    scale_color(byte_colors[i], i - 0x0E, 50);
   }
 }
 
