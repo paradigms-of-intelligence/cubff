@@ -3,7 +3,7 @@
 This project provides a (optionally) CUDA-based implementation of a
 self-modifying soup of programs which show emergence of self-replicators. Most
 experiments in the "Life on Computational Substrates: How Self Replicators Arise
-from Simple Interactions" paper (arxiv link TBA) were done using this code.
+from Simple Interactions" paper (arxiv link (https://arxiv.org/abs/2406.19108) were done using this code.
 
 ## Run instructions
 
