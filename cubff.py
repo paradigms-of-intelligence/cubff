@@ -22,7 +22,7 @@ def callback(state):
 
 
 params = cubff.SimulationParams()
-params.num_programs = 16 * 1024
-params.seed = 1
+params.num_programs = 131072
+params.seed = 0
 
 cubff.RunSimulation("bff_noheads", params, None, callback)
