@@ -24,7 +24,7 @@ FLAGS := ${COMMON_FLAGS} -arch sm_75 --compiler-options -Wall,-fPIC \
 COMPILE_FLAGS := ${FLAGS}
 COMPILER := nvcc
 else
-	FLAGS := ${COMMON_FLAGS} -Wall
+	FLAGS := ${COMMON_FLAGS} -Wall -fPIC
 
 	ifeq (${MACOS}, 1)
 		FLAGS += -Xclang -fopenmp
@@ -61,7 +61,7 @@ build/cubff_py.o: cubff_py.cc common.h
 	${COMPILER} -c ${COMPILE_FLAGS} $< -o $@ $(shell python3 -m pybind11 --includes)
 
 bin/cubff${PYEXT}: build/cubff_py.o build/common.o ${LANGS}
-	${COMPILER} -shared $^ ${COMPILE_FLAGS} ${LINK_FLAGS} -o $@
+	${COMPILER} -shared $^ ${FLAGS} ${LINK_FLAGS} -o $@
 
 .PHONY:
 clean:
