@@ -5,6 +5,16 @@ self-modifying soup of programs which show emergence of self-replicators. Most
 experiments in the "Life on Computational Substrates: How Self Replicators Arise
 from Simple Interactions" paper (arxiv link (https://arxiv.org/abs/2406.19108) were done using this code.
 
+## Dependencies
+On debian-based systems, install `build-essential` and `libbrotli-dev` (and optionally CUDA):
+
+  `sudo apt install build-essential libbrotli-dev`
+
+On Arch Linux, install the `brotli` and `base-devel` packages.
+
+The project also provides a `flake.nix` file, so you may also make the
+dependencies available with Nix using `nix develop`.
+
 ## Run instructions
 
 Compile the code by running `make` (for the CUDA-enabled version) or `make
