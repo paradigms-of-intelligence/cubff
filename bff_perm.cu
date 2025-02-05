@@ -42,7 +42,7 @@ __host__ __device__ bool isin(const char *chars, char c) {
   return false;
 }
 
-struct Bff_perm {
+struct BffPerm {
   static const char *name() { return "bff_perm"; }
 
   static void InitByteColors(
@@ -54,19 +54,7 @@ struct Bff_perm {
     }
   }
 
-  static std::string Parse(std::string bff) {
-    std::string ret;
-    for (size_t i = 0; i < bff.size();) {
-      if (bff.substr(i, 3) == "␀") {
-        ret.push_back(0);
-        i += 3;
-      } else {
-        ret.push_back(bff[i]);
-        i++;
-      }
-    }
-    return ret;
-  }
+  static std::string Parse(std::string bff) { assert(false); }
 
   static __device__ __host__ const char *MapChar(char c, char *chmem) {
     constexpr char print_inst[10] = {'<', '>', '{', '}', '+',
