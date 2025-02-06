@@ -40,7 +40,7 @@ __inline__ __device__ uint64_t warpReduceSum(uint64_t val) {
   return val;
 }
 
-__inline__ __device__ int GetIndex() {
+__inline__ __device__ size_t GetIndex() {
   return threadIdx.x + blockIdx.x * blockDim.x;
 }
 
@@ -76,12 +76,12 @@ template <typename T> struct DeviceMemory {
 #define __host__
 #define __global__
 
-inline int &IndexThreadLocal() {
-  thread_local int index;
+inline size_t &IndexThreadLocal() {
+  thread_local size_t index;
   return index;
 }
 
-inline int GetIndex() { return IndexThreadLocal(); }
+inline size_t GetIndex() { return IndexThreadLocal(); }
 
 inline void IncreaseInsnCount(unsigned long long count,
                               unsigned long long *storage) {
@@ -127,7 +127,7 @@ inline __device__ __host__ uint64_t SplitMix64(uint64_t seed) {
 template <typename Language>
 __global__ void InitPrograms(size_t seed, size_t num_programs,
                              uint8_t *programs, bool zero_init) {
-  int index = GetIndex();
+  size_t index = GetIndex();
   auto prog = programs + index * kSingleTapeSize;
   if (index >= num_programs)
     return;
@@ -149,7 +149,7 @@ __global__ void
 MutateAndRunPrograms(uint8_t *programs, const uint32_t *shuf_idx, size_t seed,
                      uint32_t mutation_prob, unsigned long long *insn_count,
                      size_t num_programs, size_t num_indices) {
-  int index = GetIndex();
+  size_t index = GetIndex();
   uint8_t tape[2 * kSingleTapeSize] = {};
   if (2 * index >= num_programs)
     return;
