@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-#include "common_language.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+
+#include "common_language.h"
 
 namespace {
 
 struct Forth {
   static const char *name();
 
-  static void
-  InitByteColors(std::array<std::array<uint8_t, 3>, 256> &byte_colors);
+  static void InitByteColors(
+      std::array<std::array<uint8_t, 3>, 256> &byte_colors);
 
   static std::string Parse(std::string hex) {
     std::string ret;
@@ -60,10 +61,9 @@ struct Forth {
     return chmem;
   }
 
-  static __device__ __host__ void
-  PrintProgramInternal(size_t pc_pos, const uint8_t *mem, size_t len,
-                       const uint8_t *mem2, size_t len2, const uint8_t *stack,
-                       size_t stack_len) {
+  static __device__ __host__ void PrintProgramInternal(
+      size_t pc_pos, const uint8_t *mem, size_t len, const uint8_t *mem2,
+      size_t len2, const uint8_t *stack, size_t stack_len) {
     auto print_char = [&](char c, size_t i) {
       bool color = false;
       if (i == pc_pos) {
@@ -142,4 +142,4 @@ struct Forth {
 };
 
 REGISTER(Forth);
-} // namespace
+}  // namespace

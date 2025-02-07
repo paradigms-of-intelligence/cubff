@@ -23,8 +23,8 @@ namespace {
 struct Subleq {
   static const char *name() { return "subleq"; }
 
-  static void
-  InitByteColors(std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
+  static void InitByteColors(
+      std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
     for (size_t i = 0; i < 256; i++) {
       byte_colors[i][0] = i;
       byte_colors[i][1] = 0;

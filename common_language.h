@@ -23,13 +23,13 @@
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
 
-#define CUCHECK(op)                                                            \
-  {                                                                            \
-    cudaError_t cudaerr = op;                                                  \
-    if (cudaerr != cudaSuccess) {                                              \
-      printf("%s failed with error: %s\n", #op, cudaGetErrorString(cudaerr));  \
-      exit(1);                                                                 \
-    }                                                                          \
+#define CUCHECK(op)                                                           \
+  {                                                                           \
+    cudaError_t cudaerr = op;                                                 \
+    if (cudaerr != cudaSuccess) {                                             \
+      printf("%s failed with error: %s\n", #op, cudaGetErrorString(cudaerr)); \
+      exit(1);                                                                \
+    }                                                                         \
   }
 
 constexpr size_t kWarpSize = 32;
@@ -55,7 +55,8 @@ __inline__ __device__ void IncreaseInsnCount(unsigned long long count,
 
 inline void Synchronize() { CUCHECK(cudaDeviceSynchronize()); }
 
-template <typename T> struct DeviceMemory {
+template <typename T>
+struct DeviceMemory {
   T *data;
   DeviceMemory(size_t size) { CUCHECK(cudaMalloc(&data, size * sizeof(T))); }
   void Write(const T *host, size_t count) {
@@ -90,7 +91,8 @@ inline void IncreaseInsnCount(unsigned long long count,
 
 inline void Synchronize() {}
 
-template <typename T> struct DeviceMemory {
+template <typename T>
+struct DeviceMemory {
   T *data;
   DeviceMemory(size_t size) { data = (T *)malloc(size * sizeof(T)); }
   void Write(const T *host, size_t count) {
@@ -102,19 +104,19 @@ template <typename T> struct DeviceMemory {
   DeviceMemory(DeviceMemory &) = delete;
 };
 
-#define RUN(grid, block, fun, ...)                                             \
-  _Pragma("omp parallel for") for (size_t _threadcnt = 0;                      \
-                                   _threadcnt < grid * block; _threadcnt++) {  \
-    IndexThreadLocal() = _threadcnt;                                           \
-    fun(__VA_ARGS__);                                                          \
+#define RUN(grid, block, fun, ...)                                            \
+  _Pragma("omp parallel for") for (size_t _threadcnt = 0;                     \
+                                   _threadcnt < grid * block; _threadcnt++) { \
+    IndexThreadLocal() = _threadcnt;                                          \
+    fun(__VA_ARGS__);                                                         \
   }
 
 #endif
 
-#define CHECK(op)                                                              \
-  if (!(op)) {                                                                 \
-    printf("%s is false\n", #op);                                              \
-    exit(1);                                                                   \
+#define CHECK(op)                 \
+  if (!(op)) {                    \
+    printf("%s is false\n", #op); \
+    exit(1);                      \
   }
 
 inline __device__ __host__ uint64_t SplitMix64(uint64_t seed) {
@@ -129,8 +131,7 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
                              uint8_t *programs, bool zero_init) {
   size_t index = GetIndex();
   auto prog = programs + index * kSingleTapeSize;
-  if (index >= num_programs)
-    return;
+  if (index >= num_programs) return;
   if (zero_init) {
     for (size_t i = 0; i < kSingleTapeSize; i++) {
       prog[i] = 0;
@@ -145,14 +146,14 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
 }
 
 template <typename Language>
-__global__ void
-MutateAndRunPrograms(uint8_t *programs, const uint32_t *shuf_idx, size_t seed,
-                     uint32_t mutation_prob, unsigned long long *insn_count,
-                     size_t num_programs, size_t num_indices) {
+__global__ void MutateAndRunPrograms(uint8_t *programs,
+                                     const uint32_t *shuf_idx, size_t seed,
+                                     uint32_t mutation_prob,
+                                     unsigned long long *insn_count,
+                                     size_t num_programs, size_t num_indices) {
   size_t index = GetIndex();
   uint8_t tape[2 * kSingleTapeSize] = {};
-  if (2 * index >= num_programs)
-    return;
+  if (2 * index >= num_programs) return;
   uint32_t p1 = shuf_idx[2 * index];
   uint32_t p2 = shuf_idx[2 * index + 1];
   for (size_t i = 0; i < kSingleTapeSize; i++) {

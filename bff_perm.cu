@@ -38,8 +38,7 @@ __device__ __host__ uint32_t headpos(uint32_t b) {
 
 __host__ __device__ bool isin(const char *chars, char c) {
   for (; *chars; chars++) {
-    if (c == *chars)
-      return true;
+    if (c == *chars) return true;
   }
   return false;
 }
@@ -47,8 +46,8 @@ __host__ __device__ bool isin(const char *chars, char c) {
 struct BffPerm {
   static const char *name() { return "bff_perm"; }
 
-  static void
-  InitByteColors(std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
+  static void InitByteColors(
+      std::array<std::array<uint8_t, 3>, 256> &byte_colors) {
     for (size_t i = 0; i < 256; i++) {
       byte_colors[i][0] = 255;
       byte_colors[i][1] = 255;
@@ -67,46 +66,45 @@ struct BffPerm {
       return "␀";
     }
     switch (chmem[0]) {
-    case INST0:
-      chmem[0] = print_inst[0];
-      break;
-    case INST1:
-      chmem[0] = print_inst[1];
-      break;
-    case INST2:
-      chmem[0] = print_inst[2];
-      break;
-    case INST3:
-      chmem[0] = print_inst[3];
-      break;
-    case INST4:
-      chmem[0] = print_inst[4];
-      break;
-    case INST5:
-      chmem[0] = print_inst[5];
-      break;
-    case INST6:
-      chmem[0] = print_inst[6];
-      break;
-    case INST7:
-      chmem[0] = print_inst[7];
-      break;
-    case INST8:
-      chmem[0] = print_inst[8];
-      break;
-    case INST9:
-      chmem[0] = print_inst[9];
-      break;
-    default:
-      chmem[0] = ' ';
+      case INST0:
+        chmem[0] = print_inst[0];
+        break;
+      case INST1:
+        chmem[0] = print_inst[1];
+        break;
+      case INST2:
+        chmem[0] = print_inst[2];
+        break;
+      case INST3:
+        chmem[0] = print_inst[3];
+        break;
+      case INST4:
+        chmem[0] = print_inst[4];
+        break;
+      case INST5:
+        chmem[0] = print_inst[5];
+        break;
+      case INST6:
+        chmem[0] = print_inst[6];
+        break;
+      case INST7:
+        chmem[0] = print_inst[7];
+        break;
+      case INST8:
+        chmem[0] = print_inst[8];
+        break;
+      case INST9:
+        chmem[0] = print_inst[9];
+        break;
+      default:
+        chmem[0] = ' ';
     }
     return chmem;
   }
 
-  static __device__ __host__ void
-  PrintProgramInternal(size_t head0_pos, size_t head1_pos, size_t pc_pos,
-                       const uint8_t *mem, size_t len, const uint8_t *mem2,
-                       size_t len2) {
+  static __device__ __host__ void PrintProgramInternal(
+      size_t head0_pos, size_t head1_pos, size_t pc_pos, const uint8_t *mem,
+      size_t len, const uint8_t *mem2, size_t len2) {
     auto print_char = [&](char c, size_t i) {
       char chmem[32] = {};
       const char *cc = MapChar(mem[i], chmem);
@@ -168,64 +166,60 @@ struct BffPerm {
       }
       uint8_t cmd = tape[pos];
       switch (cmd) {
-      case INST0:
-        head0_pos--;
-        break;
-      case INST1:
-        head0_pos++;
-        break;
-      case INST2:
-        head1_pos--;
-        break;
-      case INST3:
-        head1_pos++;
-        break;
-      case INST4:
-        tape[head0_pos]++;
-        break;
-      case INST5:
-        tape[head0_pos]--;
-        break;
-      case INST6:
-        tape[head1_pos] = tape[head0_pos];
-        break;
-      case INST7:
-        tape[head0_pos] = tape[head1_pos];
-        break;
-      case INST8:
-        if (!tape[head0_pos]) {
-          size_t scanclosed = 1;
-          pos++;
-          for (; pos < (2 * kSingleTapeSize) && scanclosed > 0; pos++) {
-            if (tape[pos] == INST9)
-              scanclosed--;
-            if (tape[pos] == INST8)
-              scanclosed++;
+        case INST0:
+          head0_pos--;
+          break;
+        case INST1:
+          head0_pos++;
+          break;
+        case INST2:
+          head1_pos--;
+          break;
+        case INST3:
+          head1_pos++;
+          break;
+        case INST4:
+          tape[head0_pos]++;
+          break;
+        case INST5:
+          tape[head0_pos]--;
+          break;
+        case INST6:
+          tape[head1_pos] = tape[head0_pos];
+          break;
+        case INST7:
+          tape[head0_pos] = tape[head1_pos];
+          break;
+        case INST8:
+          if (!tape[head0_pos]) {
+            size_t scanclosed = 1;
+            pos++;
+            for (; pos < (2 * kSingleTapeSize) && scanclosed > 0; pos++) {
+              if (tape[pos] == INST9) scanclosed--;
+              if (tape[pos] == INST8) scanclosed++;
+            }
+            pos--;
+            if (scanclosed != 0) {
+              pos = 2 * kSingleTapeSize;
+            }
           }
-          pos--;
-          if (scanclosed != 0) {
-            pos = 2 * kSingleTapeSize;
+          break;
+        case INST9:
+          if (tape[head0_pos]) {
+            size_t scanopen = 1;
+            pos--;
+            for (; pos >= 0 && scanopen > 0; pos--) {
+              if (tape[pos] == INST9) scanopen++;
+              if (tape[pos] == INST8) scanopen--;
+            }
+            pos++;
+            if (scanopen != 0) {
+              pos = -1;
+            }
           }
-        }
-        break;
-      case INST9:
-        if (tape[head0_pos]) {
-          size_t scanopen = 1;
-          pos--;
-          for (; pos >= 0 && scanopen > 0; pos--) {
-            if (tape[pos] == INST9)
-              scanopen++;
-            if (tape[pos] == INST8)
-              scanopen--;
-          }
-          pos++;
-          if (scanopen != 0) {
-            pos = -1;
-          }
-        }
-        break;
-      default:
-        nskip++;
+          break;
+        default:
+          nskip++;
       }
       if (pos < 0) {
         i++;
@@ -243,4 +237,4 @@ struct BffPerm {
 };
 
 REGISTER(BffPerm);
-} // namespace
+}  // namespace

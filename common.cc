@@ -13,16 +13,19 @@
 // limitations under the License.
 
 #include "common.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <unordered_map>
 
-template <typename T> std::unordered_map<std::string, T> *reg() {
+template <typename T>
+std::unordered_map<std::string, T> *reg() {
   static std::unordered_map<std::string, T> r;
   return &r;
 }
 
-template <typename T> static T GetFn(const std::string &language) {
+template <typename T>
+static T GetFn(const std::string &language) {
   auto map = reg<T>();
   auto iter = map->find(language);
   if (iter == map->end()) {
