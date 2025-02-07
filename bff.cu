@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "common_language.h"
 
@@ -42,8 +43,8 @@ struct Bff {
     }
   }
 
-  static std::string Parse(std::string bff) {
-    std::string ret;
+  static std::vector<uint8_t> Parse(std::string bff) {
+    std::vector<uint8_t> ret;
     for (size_t i = 0; i < bff.size();) {
       if (bff.substr(i, 3) == "␀") {
         ret.push_back(0);

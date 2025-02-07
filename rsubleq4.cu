@@ -32,8 +32,8 @@ struct RSubleq4 {
     }
   }
 
-  static std::string Parse(std::string subleq) {
-    std::string ret;
+  static std::vector<uint8_t> Parse(std::string subleq) {
+    std::vector<uint8_t> ret;
 
     auto fromhex = [](char c) {
       if ('0' <= c && c <= '9') {

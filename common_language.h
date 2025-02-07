@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#include <stdint.h>
+
 #include <cstring>
 #include <functional>
+#include <vector>
 
 #include "common.h"
 #ifdef __CUDACC__
@@ -191,9 +194,8 @@ __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
 }
 
 template <typename Language>
-void Simulation<Language>::RunSingleProgram(std::string program,
-                                            size_t stepcount, bool debug) {
-  std::string parsed = Language::Parse(program);
+void Simulation<Language>::RunSingleParsedProgram(
+    const std::vector<uint8_t> &parsed, size_t stepcount, bool debug) {
   DeviceMemory<uint8_t> mem(kSingleTapeSize * 2);
   uint8_t zero[2 * kSingleTapeSize] = {};
   memcpy(zero, parsed.data(), parsed.size());
@@ -208,6 +210,12 @@ void Simulation<Language>::RunSingleProgram(std::string program,
   mem.Read(final_state, 2 * kSingleTapeSize);
   Language::PrintProgram(2 * kSingleTapeSize, final_state, 2 * kSingleTapeSize,
                          nullptr, 0);
+}
+
+template <typename Language>
+void Simulation<Language>::RunSingleProgram(std::string program,
+                                            size_t stepcount, bool debug) {
+  RunSingleParsedProgram(Language::Parse(program), stepcount, debug);
 }
 
 template <typename Language>
@@ -242,7 +250,7 @@ void Simulation<Language>::RunSimulation(
       params.zero_init);
 
   if (initial_program.has_value()) {
-    std::string parsed = Language::Parse(*initial_program);
+    std::vector<uint8_t> parsed = Language::Parse(*initial_program);
     programs.Write((const unsigned char *)parsed.data(), parsed.size());
   }
 
@@ -257,10 +265,8 @@ void Simulation<Language>::RunSimulation(
   state.shuffle_idx.resize(num_programs);
   Language::InitByteColors(state.byte_colors);
 
-  state.print_program = [&](size_t i) {
-    const uint8_t *ptr = state.soup.data() + 2 * i * kSingleTapeSize;
-    Language::PrintProgram(2 * kSingleTapeSize, ptr, kSingleTapeSize,
-                           ptr + kSingleTapeSize, kSingleTapeSize);
+  state.print_program = [&](const std::vector<uint8_t> &prog) {
+    Language::PrintProgram(prog.size(), prog.data(), prog.size(), nullptr, 0);
   };
 
   if (params.save_to.has_value()) {

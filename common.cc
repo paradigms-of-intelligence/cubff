@@ -14,9 +14,11 @@
 
 #include "common.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <unordered_map>
+#include <vector>
 
 template <typename T>
 std::unordered_map<std::string, T> *reg() {
@@ -44,6 +46,12 @@ void RunSingleProgram(const std::string &language, std::string program,
   GetFn<runsingle_t>(language)(program, stepcount, debug);
 }
 
+void RunSingleParsedProgram(const std::string &language,
+                            const std::vector<uint8_t> &parsed,
+                            size_t stepcount, bool debug) {
+  GetFn<runparsed_t>(language)(parsed, stepcount, debug);
+}
+
 void RunSimulation(const std::string &language, const SimulationParams &params,
                    std::optional<std::string> initial_program,
                    std::function<bool(const SimulationState &)> callback) {
@@ -51,7 +59,8 @@ void RunSimulation(const std::string &language, const SimulationParams &params,
 }
 
 void RegisterLanguage(const char *lang, runsingle_t runsingle,
-                      runsimulation_t runsimulation) {
+                      runparsed_t runparsed, runsimulation_t runsimulation) {
   (*reg<runsingle_t>())[lang] = runsingle;
+  (*reg<runparsed_t>())[lang] = runparsed;
   (*reg<runsimulation_t>())[lang] = runsimulation;
 }

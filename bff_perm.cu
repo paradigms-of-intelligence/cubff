@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "common_language.h"
 
@@ -55,7 +56,7 @@ struct BffPerm {
     }
   }
 
-  static std::string Parse(std::string bff) { assert(false); }
+  static std::vector<uint8_t> Parse(std::string bff) { assert(false); }
 
   static __device__ __host__ const char *MapChar(char c, char *chmem) {
     constexpr char print_inst[10] = {'<', '>', '{', '}', '+',

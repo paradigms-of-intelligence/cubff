@@ -67,4 +67,5 @@ PYBIND11_MODULE(cubff, m) {
       .def_readonly("print_program", &SimulationState::print_program);
 
   m.def("RunSimulation", &RunSimulation);
+  m.def("RunProgram", &RunSingleParsedProgram);
 }

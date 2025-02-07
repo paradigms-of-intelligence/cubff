@@ -44,8 +44,8 @@ struct Bff {
     }
   }
 
-  static std::string Parse(std::string bff) {
-    std::string ret;
+  static std::vector<uint8_t> Parse(std::string bff) {
+    std::vector<uint8_t> ret;
     char reverse_map[256] = {};
     for (size_t i = 0; i < 16; i++) {
       char chmem[32];
