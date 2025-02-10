@@ -15,6 +15,7 @@
  */
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -39,6 +40,7 @@
   static void f() __attribute__((constructor));                   \
   static void f() {                                               \
     RegisterLanguage(L::name(), &Simulation<L>::RunSingleProgram, \
+                     &Simulation<L>::RunSingleParsedProgram,      \
                      &Simulation<L>::RunSimulation);              \
   }
 
@@ -75,13 +77,15 @@ struct SimulationState {
   float higher_entropy;
   std::array<std::pair<std::string, float>, 16> frequent_bytes;
   std::array<std::pair<std::string, float>, 16> uncommon_bytes;
-  std::function<void(size_t)> print_program;
+  std::function<void(const std::vector<uint8_t> &)> print_program;
 };
 
 template <typename Language>
 struct Simulation {
   static void RunSingleProgram(std::string program, size_t stepcount,
                                bool debug);
+  static void RunSingleParsedProgram(const std::vector<uint8_t> &parsed,
+                                     size_t stepcount, bool debug);
   static void RunSimulation(
       const SimulationParams &params,
       std::optional<std::string> initial_program,
@@ -89,16 +93,20 @@ struct Simulation {
 };
 
 using runsingle_t = void (*)(std::string, size_t, bool);
+using runparsed_t = void (*)(const std::vector<uint8_t> &, size_t, bool);
 using runsimulation_t = void (*)(const SimulationParams &,
                                  std::optional<std::string>,
                                  std::function<bool(const SimulationState &)>);
 
 void RegisterLanguage(const char *lang, runsingle_t runsingle,
-                      runsimulation_t runsimulation);
+                      runparsed_t runparsed, runsimulation_t runsimulation);
 
 template <typename Language>
 void Register() {}
 
+void RunSingleParsedProgram(const std::string &language,
+                            const std::vector<uint8_t> &parsed_program,
+                            size_t stepcount, bool debug);
 void RunSingleProgram(const std::string &language, std::string program,
                       size_t stepcount, bool debug);
 void RunSimulation(const std::string &language, const SimulationParams &params,

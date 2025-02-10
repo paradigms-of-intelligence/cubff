@@ -17,7 +17,7 @@ from bin import cubff
 
 def callback(state):
     print(state.epoch, state.brotli_size)
-    state.print_program(1)
+    state.print_program(state.soup[:64])
     return state.epoch > 1024
 
 

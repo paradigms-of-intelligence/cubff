@@ -350,7 +350,10 @@ int main(int argc, char **argv) {
 
         for (size_t i = 0; i < std::min<size_t>(48, params.num_programs / 2);
              i++) {
-          state.print_program(i);
+          // TODO(veluca): check that this still behaves the expected way.
+          state.print_program(std::vector<uint8_t>(
+              state.soup.data() + i * 2 * kSingleTapeSize,
+              state.soup.data() + (i + 1) * 2 * kSingleTapeSize));
         }
         fflush(stdout);
       }
