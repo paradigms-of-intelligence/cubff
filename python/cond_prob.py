@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Script to compare the time to selfreplication for starting with and without an inserted loop
+"""
+
 import os
 import random
 import sys
@@ -27,14 +31,6 @@ INIT_SEED = 0
 THRESHOLD_ENTROPY = 3
 
 MAX_EPOCHS = 100000
-
-
-def StandardParams(f):
-    params = cubff.SimulationParams()
-    params.seed = INIT_SEED
-    if f:
-        params.load_from = f
-    return params
 
 
 def find_threshold_epoch(params):
@@ -81,7 +77,8 @@ with open("".join(random.choice(string.ascii_lowercase) for _ in range(8)), "a")
 
         with open(f, "wb") as wf:
             wf.write(header)
-        params_cond = StandardParams(f)
+        params_cond = cubff.SimulationParams()
+        params_cond.load_from = f
         params_cond.seed = s
         res_cond.append(find_threshold_epoch(params_cond))
 
@@ -93,19 +90,18 @@ with open("".join(random.choice(string.ascii_lowercase) for _ in range(8)), "a")
         )
         with open(f, "wb") as wf:
             wf.write(header)
+        params_nostart = cubff.SimulationParams()
+        params_nostart.load_from = f
         params_nostart = StandardParams(f)
         params_nostart.seed = s
         res_nostart.append(find_threshold_epoch(params_nostart))
         print(
             s,
-            ",",
             res_cond[-1],
-            ",",
             sum(res_cond) / len(res_cond),
-            ",",
             res_nostart[-1],
-            ",",
             sum(res_nostart) / len(res_nostart),
+            sep=", ",
         )
 
         rs.write(f"{s},{res_cond[-1]},{res_nostart[-1]}\n")
