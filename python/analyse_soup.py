@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+"""
+Tool to analyse bff soups
+"""
+
 import os
 import argparse
 import re
