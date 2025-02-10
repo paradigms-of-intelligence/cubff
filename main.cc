@@ -428,9 +428,7 @@ int main(int argc, char **argv) {
       return false;
     };
 
-    std::optional<std::string> initial_program_opt =
-        GetFlag(FLAGS_initial_program);
-    std::string initial_program = initial_program_opt.value_or("");
+    std::optional<std::string> initial_program = GetFlag(FLAGS_initial_program);
     RunSimulation(lang, params, initial_program, callback);
 
     if (logfile) {
