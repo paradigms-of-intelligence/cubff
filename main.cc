@@ -210,6 +210,7 @@ FLAG(std::string, draw_to_2d, "",
      "directory to save 2d-drawn frames to (must exist, and num must "
      "be a square number)");
 FLAG(size_t, grid_width_2d, 0, "width of the 2d grid");
+FLAG(bool, disable_output, false, "disable printing to stdout");
 
 int main(int argc, char **argv) {
   flags::ParseCommandLine(argc, argv);
@@ -323,41 +324,42 @@ int main(int argc, char **argv) {
       logfile = CheckFopen(log_to->c_str(), "w");
       fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy\n");
     }
-    printf("\033[2J\033[H");
 
     auto callback = [&](const SimulationState &state) {
-      if (state.epoch % clear_interval == 1) {
-        printf("\033[2J\033[H");
-      }
-      printf(
-          "\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
-          "MOps/s: %12.3f Epochs: %13zu ops/prog/epoch: %10.3f\n"
-          "Brotli size: %10zu Brotli bpb: %23.4f bytes/prog: %12.4f     H0: "
-          "%13.4f higher entropy: %10.6f\n",
-          state.elapsed_s, state.total_ops, state.mops_s, state.epoch,
-          state.ops_per_run, state.brotli_size, state.brotli_bpb,
-          state.bytes_per_prog, state.h0, state.higher_entropy);
+      if (!GetFlag(FLAGS_disable_output)) {
+        if (state.epoch % clear_interval == 1) {
+          printf("\033[2J\033[H");
+        }
+        printf(
+            "\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
+            "MOps/s: %12.3f Epochs: %13zu ops/prog/epoch: %10.3f\n"
+            "Brotli size: %10zu Brotli bpb: %23.4f bytes/prog: %12.4f     H0: "
+            "%13.4f higher entropy: %10.6f\n",
+            state.elapsed_s, state.total_ops, state.mops_s, state.epoch,
+            state.ops_per_run, state.brotli_size, state.brotli_bpb,
+            state.bytes_per_prog, state.h0, state.higher_entropy);
 
-      for (auto [s, f] : state.frequent_bytes) {
-        printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
+        for (auto [s, f] : state.frequent_bytes) {
+          printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
+        }
+        printf("\n");
+        for (auto [s, f] : state.uncommon_bytes) {
+          printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
+        }
+        printf("\n\n\n");
+
+        for (size_t i = 0; i < std::min<size_t>(48, params.num_programs / 2);
+             i++) {
+          state.print_program(i);
+        }
+        fflush(stdout);
       }
-      printf("\n");
-      for (auto [s, f] : state.uncommon_bytes) {
-        printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
-      }
-      printf("\n\n\n");
 
       if (logfile) {
         fprintf(logfile, "%zu,%zu,%zu,%f\n", state.epoch, state.brotli_size,
                 state.soup.size() / kSingleTapeSize, state.higher_entropy);
         fflush(logfile);
       }
-
-      for (size_t i = 0; i < std::min<size_t>(48, params.num_programs / 2);
-           i++) {
-        state.print_program(i);
-      }
-      fflush(stdout);
 
       auto write_ppm = [](const std::string &base, size_t frame, size_t xs,
                           size_t ys, const std::vector<uint8_t> &data) {
