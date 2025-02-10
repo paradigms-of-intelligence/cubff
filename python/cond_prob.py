@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,43 +64,48 @@ res_nostart = []
 seeds = list(range(NUM_RUNS))
 with open("".join(random.choice(string.ascii_lowercase) for _ in range(8)), "a") as rs:
     for s in seeds:
-      print(s)
-      f = f"{s}.dat"
-      header = struct.pack("=Q", 0) + struct.pack("=Q", 131072) + struct.pack("=Q", 0)
-      random.seed(0)
+        print(s)
+        f = f"{s}.dat"
+        header = struct.pack("=Q", 0) + struct.pack("=Q", 131072) + struct.pack("=Q", 0)
+        random.seed(0)
 
-      for _ in range(131072):
-          p = (
-              random.randrange(0, 256).to_bytes()
-              + random.randrange(256).to_bytes()
-              + b"["
-              + b"".join([random.randrange(256).to_bytes() for _ in range(60)])
-              + b"]"
-          )
-          header = header + p
+        for _ in range(131072):
+            p = (
+                random.randrange(0, 256).to_bytes()
+                + random.randrange(256).to_bytes()
+                + b"["
+                + b"".join([random.randrange(256).to_bytes() for _ in range(60)])
+                + b"]"
+            )
+            header = header + p
 
-      with open(f, "wb") as wf:
-          wf.write(header)
-      params_cond = StandardParams(f)
-      params_cond.seed = s
-      res_cond.append(find_threshold_epoch(params_cond))
+        with open(f, "wb") as wf:
+            wf.write(header)
+        params_cond = StandardParams(f)
+        params_cond.seed = s
+        res_cond.append(find_threshold_epoch(params_cond))
 
-      header = header[:-62]+ random.randrange(256).to_bytes()+header[-61:-1]+random.randrange(256).to_bytes()
-      with open(f, "wb") as wf:
-          wf.write(header)
-      params_nostart = StandardParams(f)
-      params_nostart.seed = s
-      res_nostart.append(find_threshold_epoch(params_nostart))
-      print(
-          s,
-          ",",
-          res_cond[-1],
-          ",",
-          sum(res_cond) / len(res_cond),
-          ",",
-          res_nostart[-1],
-          ",",
-          sum(res_nostart) / len(res_nostart),
-      )
+        header = (
+            header[:-62]
+            + random.randrange(256).to_bytes()
+            + header[-61:-1]
+            + random.randrange(256).to_bytes()
+        )
+        with open(f, "wb") as wf:
+            wf.write(header)
+        params_nostart = StandardParams(f)
+        params_nostart.seed = s
+        res_nostart.append(find_threshold_epoch(params_nostart))
+        print(
+            s,
+            ",",
+            res_cond[-1],
+            ",",
+            sum(res_cond) / len(res_cond),
+            ",",
+            res_nostart[-1],
+            ",",
+            sum(res_nostart) / len(res_nostart),
+        )
 
-      rs.write(f"{s},{res_cond[-1]},{res_nostart[-1]}\n")
+        rs.write(f"{s},{res_cond[-1]},{res_nostart[-1]}\n")
