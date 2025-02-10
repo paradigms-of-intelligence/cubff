@@ -1,0 +1,38 @@
+name: PR
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - bff8
+          - bff8_noheads
+          - bff
+          - bff_noheads_4bit
+          - bff_noheads
+          - bff_perm
+          - forthcopy
+          - forth
+          - forthtrivial
+          - rsubleq4
+          - subleq
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies 
+        run: sudo apt install build-essential libbrotli-dev python3-pybind11
+
+      - name: Build 
+        run: make -j CUDA=0 PYTHON=1
+
+      - name: Test ${{ matrix.language }}
+        run: ./test.sh ${{ matrix.language }}
