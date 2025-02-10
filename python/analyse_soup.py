@@ -14,7 +14,7 @@
 
 
 """
-Tool to analyse bff soups
+Tool to analyse selfreplicators in bff soups including head position
 """
 
 import os
