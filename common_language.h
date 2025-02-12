@@ -186,6 +186,7 @@ __global__ void MutateAndRunPrograms(uint8_t *programs,
 template <typename Language>
 __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
   size_t ops = Language::Evaluate(program, stepcount, debug);
+  printf("%s", ResetColors());
   printf("ops: %d\n", (int)ops);
   printf("\n");
 }

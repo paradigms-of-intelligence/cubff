@@ -19,9 +19,7 @@
 #include <cstdio>
 #include <cstring>
 #include <optional>
-#include <random>
 #include <string>
-#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -317,6 +315,7 @@ int main(int argc, char **argv) {
   auto run_flag = GetFlag(FLAGS_run);
   auto lang = GetFlag(FLAGS_lang);
   if (run_flag.has_value()) {
+    printf("%s", ResetColors());
     RunSingleProgram(lang, run_flag.value(), GetFlag(FLAGS_run_steps), debug);
   } else {
     FILE *logfile = nullptr;
@@ -328,23 +327,25 @@ int main(int argc, char **argv) {
     auto callback = [&](const SimulationState &state) {
       if (!GetFlag(FLAGS_disable_output)) {
         if (state.epoch % clear_interval == 1) {
-          printf("\033[2J\033[H");
+          printf("%s\033[2J\033[H", ResetColors());
         }
         printf(
-            "\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
+            "%s\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
             "MOps/s: %12.3f Epochs: %13zu ops/prog/epoch: %10.3f\n"
             "Brotli size: %10zu Brotli bpb: %23.4f bytes/prog: %12.4f     H0: "
             "%13.4f higher entropy: %10.6f\n",
-            state.elapsed_s, state.total_ops, state.mops_s, state.epoch,
-            state.ops_per_run, state.brotli_size, state.brotli_bpb,
+            ResetColors(), state.elapsed_s, state.total_ops, state.mops_s,
+            state.epoch, state.ops_per_run, state.brotli_size, state.brotli_bpb,
             state.bytes_per_prog, state.h0, state.higher_entropy);
 
         for (auto [s, f] : state.frequent_bytes) {
-          printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
+          printf("\033[37;1m%s%s %5.2f%% ", s.c_str(), ResetColors(),
+                 f * 100.0);
         }
         printf("\n");
         for (auto [s, f] : state.uncommon_bytes) {
-          printf("\033[37;1m%s\033[;m %5.2f%% ", s.c_str(), f * 100.0);
+          printf("\033[37;1m%s%s %5.2f%% ", s.c_str(), ResetColors(),
+                 f * 100.0);
         }
         printf("\n\n\n");
 
