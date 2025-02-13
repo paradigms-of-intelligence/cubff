@@ -62,8 +62,8 @@ struct Forth {
   }
 
   static __device__ __host__ void PrintProgramInternal(
-      size_t pc_pos, const uint8_t *mem, size_t len, const uint8_t *mem2,
-      size_t len2, const uint8_t *stack, size_t stack_len) {
+      size_t pc_pos, const uint8_t *mem, size_t len, const size_t *separators,
+      size_t num_separators, const uint8_t *stack, size_t stack_len) {
     auto print_char = [&](char c, size_t i) {
       if (i == pc_pos) {
         printf("\x1b[48:5:22m");
@@ -71,16 +71,14 @@ struct Forth {
       char chmem[4];
       printf("\x1b[38:5:250m%s%s", MapChar(c, chmem), ResetColors());
     };
+    size_t sep_id = 0;
     for (size_t i = 0; i < len; i++) {
+      if (sep_id < num_separators && separators[sep_id] == i) {
+        printf("   ");
+        sep_id++;
+      }
       char c = mem[i];
       print_char(c, i);
-    }
-    if (mem2) {
-      printf("   ");
-      for (size_t i = len; i < len + len2; i++) {
-        char c = mem2[i - len];
-        print_char(c, i);
-      }
     }
     if (stack) {
       printf("   ");
@@ -94,8 +92,9 @@ struct Forth {
   }
 
   static void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
-                           const uint8_t *mem2, size_t len2) {
-    PrintProgramInternal(pc_pos, mem, len, mem2, len2, nullptr, 0);
+                           const size_t *separators, size_t num_separators) {
+    PrintProgramInternal(pc_pos, mem, len, separators, num_separators, nullptr,
+                         0);
   }
 
   struct Stack {

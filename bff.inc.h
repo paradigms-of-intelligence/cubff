@@ -219,7 +219,7 @@ struct Bff {
 
   static __device__ __host__ void PrintProgramInternal(
       size_t head0_pos, size_t head1_pos, size_t pc_pos, const uint8_t *mem,
-      size_t len, const uint8_t *mem2, size_t len2) {
+      size_t len, const size_t *separators, size_t num_separators) {
     auto print_char = [&](char c, size_t i) {
       BffOp kind = GetOpKind(c);
       bool is_command = kind < BffOp::kNull;
@@ -242,27 +242,26 @@ struct Bff {
       char chmem[32] = {};
       printf("%s%s", MapChar(c, chmem), ResetColors());
     };
+    size_t sep_id = 0;
     for (size_t i = 0; i < len; i++) {
+      if (sep_id < num_separators && separators[sep_id] == i) {
+        printf("   ");
+        sep_id++;
+      }
       char c = mem[i];
       print_char(c, i);
-    }
-    if (mem2) {
-      printf("   ");
-      for (size_t i = len; i < len + len2; i++) {
-        char c = mem2[i - len];
-        print_char(c, i);
-      }
     }
     printf("\n");
   }
 
   static void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
-                           const uint8_t *mem2, size_t len2) {
+                           const size_t *separators, size_t num_separators) {
     int head0_pos = 2 * kSingleTapeSize;
     int head1_pos = 2 * kSingleTapeSize;
     int fake_pc = 0;
     InitialState(mem, head0_pos, head1_pos, fake_pc);
-    PrintProgramInternal(head0_pos, head1_pos, pc_pos, mem, len, mem2, len2);
+    PrintProgramInternal(head0_pos, head1_pos, pc_pos, mem, len, separators,
+                         num_separators);
   }
 
 #ifdef BFF_HEADS

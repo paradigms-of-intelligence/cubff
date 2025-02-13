@@ -18,6 +18,10 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
 #include "common.h"
 
 namespace py = pybind11;
@@ -63,10 +67,16 @@ PYBIND11_MODULE(cubff, m) {
       .def_readonly("h0", &SimulationState::h0)
       .def_readonly("higher_entropy", &SimulationState::higher_entropy)
       .def_readonly("frequent_bytes", &SimulationState::frequent_bytes)
-      .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes)
-      .def_readonly("print_program", &SimulationState::print_program);
+      .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes);
 
   pybind11::class_<LanguageInterface>(m, "LanguageInterface")
+      .def("PrintProgram",
+           [](const LanguageInterface* interface, size_t pc_pos,
+              const std::vector<uint8_t>& program,
+              const std::vector<size_t>& separators) {
+             interface->PrintProgram(pc_pos, program.data(), program.size(),
+                                     separators.data(), separators.size());
+           })
       .def("RunSimulation", &LanguageInterface::RunSimulation)
       .def("RunSingleProgram", &LanguageInterface::RunSingleProgram)
       .def("RunSingleParsedProgram",
