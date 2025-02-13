@@ -29,8 +29,8 @@ struct Forth {
   static void InitByteColors(
       std::array<std::array<uint8_t, 3>, 256> &byte_colors);
 
-  static std::string Parse(std::string hex) {
-    std::string ret;
+  static std::vector<uint8_t> Parse(std::string hex) {
+    std::vector<uint8_t> ret;
 
     auto fromhex = [](char c) {
       if ('0' <= c && c <= '9') {

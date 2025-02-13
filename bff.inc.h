@@ -164,8 +164,9 @@ struct Bff {
     }
   }
 
-  static std::string Parse(std::string bff) {
-    std::string ret;
+  static std::vector<uint8_t> Parse(std::string bff) {
+    std::vector<uint8_t> ret;
+
     char command_bytes[BffOp::kNoop] = {};
     for (size_t i = 0; i < 256; i++) {
       BffOp kind = GetOpKind(i);

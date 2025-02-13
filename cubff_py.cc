@@ -68,7 +68,13 @@ PYBIND11_MODULE(cubff, m) {
 
   pybind11::class_<LanguageInterface>(m, "LanguageInterface")
       .def("RunSimulation", &LanguageInterface::RunSimulation)
-      .def("RunSingleProgram", &LanguageInterface::RunSingleProgram);
+      .def("RunSingleProgram", &LanguageInterface::RunSingleProgram)
+      .def("RunSingleParsedProgram",
+           &LanguageInterface::RunSingleParsedProgram);
 
-  m.def("GetLanguage", &GetLanguage);
+  m.def("GetLanguage", &GetLanguage, py::return_value_policy::reference);
+  m.def("ResetColors", []() {
+    printf("%s", ResetColors());
+    fflush(stdout);
+  });
 }

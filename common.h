@@ -15,6 +15,7 @@
  */
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -89,16 +90,21 @@ struct SimulationState {
 struct LanguageInterface {
   virtual void RunSingleProgram(std::string program, size_t stepcount,
                                 bool debug) const = 0;
+  virtual void RunSingleParsedProgram(const std::vector<uint8_t> &parsed,
+                                      size_t stepcount, bool debug) const = 0;
   virtual void RunSimulation(
       const SimulationParams &params,
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const = 0;
+  virtual ~LanguageInterface() {}
 };
 
 template <typename Language>
 struct Simulation : public LanguageInterface {
   void RunSingleProgram(std::string program, size_t stepcount,
                         bool debug) const override;
+  void RunSingleParsedProgram(const std::vector<uint8_t> &parsed,
+                              size_t stepcount, bool debug) const override;
   void RunSimulation(
       const SimulationParams &params,
       std::optional<std::string> initial_program,

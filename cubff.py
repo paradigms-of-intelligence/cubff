@@ -27,4 +27,5 @@ params.seed = 0
 
 language = cubff.GetLanguage("bff_noheads")
 
+cubff.ResetColors()
 language.RunSimulation(params, None, callback)
