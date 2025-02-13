@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#include <stdint.h>
+
 #include <cstring>
 #include <functional>
+#include <vector>
 
 #include "common.h"
 #ifdef __CUDACC__
@@ -192,10 +195,8 @@ __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
 }
 
 template <typename Language>
-void Simulation<Language>::RunSingleProgram(std::string program,
-                                            size_t stepcount,
-                                            bool debug) const {
-  std::string parsed = Language::Parse(program);
+void Simulation<Language>::RunSingleParsedProgram(
+    const std::vector<uint8_t> &parsed, size_t stepcount, bool debug) const {
   DeviceMemory<uint8_t> mem(kSingleTapeSize * 2);
   uint8_t zero[2 * kSingleTapeSize] = {};
   memcpy(zero, parsed.data(), parsed.size());
@@ -210,6 +211,13 @@ void Simulation<Language>::RunSingleProgram(std::string program,
   mem.Read(final_state, 2 * kSingleTapeSize);
   Language::PrintProgram(2 * kSingleTapeSize, final_state, 2 * kSingleTapeSize,
                          nullptr, 0);
+}
+
+template <typename Language>
+void Simulation<Language>::RunSingleProgram(std::string program,
+                                            size_t stepcount,
+                                            bool debug) const {
+  RunSingleParsedProgram(Language::Parse(program), stepcount, debug);
 }
 
 template <typename Language>
@@ -244,7 +252,7 @@ void Simulation<Language>::RunSimulation(
       params.zero_init);
 
   if (initial_program.has_value()) {
-    std::string parsed = Language::Parse(*initial_program);
+    std::vector<uint8_t> parsed = Language::Parse(*initial_program);
     programs.Write((const unsigned char *)parsed.data(), parsed.size());
   }
 
