@@ -193,7 +193,8 @@ __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
 
 template <typename Language>
 void Simulation<Language>::RunSingleProgram(std::string program,
-                                            size_t stepcount, bool debug) {
+                                            size_t stepcount,
+                                            bool debug) const {
   std::string parsed = Language::Parse(program);
   DeviceMemory<uint8_t> mem(kSingleTapeSize * 2);
   uint8_t zero[2 * kSingleTapeSize] = {};
@@ -214,7 +215,7 @@ void Simulation<Language>::RunSingleProgram(std::string program,
 template <typename Language>
 void Simulation<Language>::RunSimulation(
     const SimulationParams &params, std::optional<std::string> initial_program,
-    std::function<bool(const SimulationState &)> callback) {
+    std::function<bool(const SimulationState &)> callback) const {
   constexpr size_t kNumThreads = 32;
   size_t num_programs = params.num_programs;
 

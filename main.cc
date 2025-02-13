@@ -314,9 +314,11 @@ int main(int argc, char **argv) {
 
   auto run_flag = GetFlag(FLAGS_run);
   auto lang = GetFlag(FLAGS_lang);
+  const LanguageInterface *language = GetLanguage(lang);
   if (run_flag.has_value()) {
     printf("%s", ResetColors());
-    RunSingleProgram(lang, run_flag.value(), GetFlag(FLAGS_run_steps), debug);
+    language->RunSingleProgram(run_flag.value(), GetFlag(FLAGS_run_steps),
+                               debug);
   } else {
     FILE *logfile = nullptr;
     if (log_to.has_value()) {
@@ -430,7 +432,7 @@ int main(int argc, char **argv) {
     };
 
     std::optional<std::string> initial_program = GetFlag(FLAGS_initial_program);
-    RunSimulation(lang, params, initial_program, callback);
+    language->RunSimulation(params, initial_program, callback);
 
     if (logfile) {
       fclose(logfile);

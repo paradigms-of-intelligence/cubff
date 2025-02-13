@@ -25,4 +25,6 @@ params = cubff.SimulationParams()
 params.num_programs = 131072
 params.seed = 0
 
-cubff.RunSimulation("bff_noheads", params, None, callback)
+language = cubff.GetLanguage("bff_noheads")
+
+language.RunSimulation(params, None, callback)

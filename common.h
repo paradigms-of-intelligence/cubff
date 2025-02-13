@@ -29,17 +29,17 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "brotli/encode.h"
 
-#define REGISTER(L)                                               \
-  static void f() __attribute__((constructor));                   \
-  static void f() {                                               \
-    RegisterLanguage(L::name(), &Simulation<L>::RunSingleProgram, \
-                     &Simulation<L>::RunSimulation);              \
+#define REGISTER(L)                                                 \
+  static void registry_function_foo() __attribute__((constructor)); \
+  static void registry_function_foo() {                             \
+    RegisterLanguage(L::name(), std::make_unique<Simulation<L>>()); \
   }
 
 #ifdef __CUDACC__
@@ -86,32 +86,32 @@ struct SimulationState {
   std::function<void(size_t)> print_program;
 };
 
-template <typename Language>
-struct Simulation {
-  static void RunSingleProgram(std::string program, size_t stepcount,
-                               bool debug);
-  static void RunSimulation(
+struct LanguageInterface {
+  virtual void RunSingleProgram(std::string program, size_t stepcount,
+                                bool debug) const = 0;
+  virtual void RunSimulation(
       const SimulationParams &params,
       std::optional<std::string> initial_program,
-      std::function<bool(const SimulationState &)> callback);
+      std::function<bool(const SimulationState &)> callback) const = 0;
 };
 
-using runsingle_t = void (*)(std::string, size_t, bool);
-using runsimulation_t = void (*)(const SimulationParams &,
-                                 std::optional<std::string>,
-                                 std::function<bool(const SimulationState &)>);
+template <typename Language>
+struct Simulation : public LanguageInterface {
+  void RunSingleProgram(std::string program, size_t stepcount,
+                        bool debug) const override;
+  void RunSimulation(
+      const SimulationParams &params,
+      std::optional<std::string> initial_program,
+      std::function<bool(const SimulationState &)> callback) const override;
+};
 
-void RegisterLanguage(const char *lang, runsingle_t runsingle,
-                      runsimulation_t runsimulation);
+void RegisterLanguage(const char *lang,
+                      std::unique_ptr<LanguageInterface> interface);
 
 template <typename Language>
 void Register() {}
 
-void RunSingleProgram(const std::string &language, std::string program,
-                      size_t stepcount, bool debug);
-void RunSimulation(const std::string &language, const SimulationParams &params,
-                   std::optional<std::string> initial_program,
-                   std::function<bool(const SimulationState &)> callback);
+const LanguageInterface *GetLanguage(const std::string &language);
 
 inline FILE *CheckFopen(const char *f, const char *mode) {
   FILE *out = fopen(f, mode);

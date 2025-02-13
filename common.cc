@@ -16,42 +16,30 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <unordered_map>
 
-template <typename T>
-std::unordered_map<std::string, T> *reg() {
-  static std::unordered_map<std::string, T> r;
+static std::unordered_map<std::string, std::unique_ptr<LanguageInterface>> *
+registry() {
+  static std::unordered_map<std::string, std::unique_ptr<LanguageInterface>> r;
   return &r;
 }
 
-template <typename T>
-static T GetFn(const std::string &language) {
-  auto map = reg<T>();
+const LanguageInterface *GetLanguage(const std::string &language) {
+  auto map = registry();
   auto iter = map->find(language);
   if (iter == map->end()) {
     fprintf(stderr, "Unknown language `%s`\nAvailable languages:\n",
             language.c_str());
-    for (auto [l, _] : *map) {
+    for (const auto &[l, _] : *map) {
       fprintf(stderr, "%s\n", l.c_str());
     }
     exit(1);
   }
-  return iter->second;
+  return iter->second.get();
 }
 
-void RunSingleProgram(const std::string &language, std::string program,
-                      size_t stepcount, bool debug) {
-  GetFn<runsingle_t>(language)(program, stepcount, debug);
-}
-
-void RunSimulation(const std::string &language, const SimulationParams &params,
-                   std::optional<std::string> initial_program,
-                   std::function<bool(const SimulationState &)> callback) {
-  GetFn<runsimulation_t>(language)(params, initial_program, callback);
-}
-
-void RegisterLanguage(const char *lang, runsingle_t runsingle,
-                      runsimulation_t runsimulation) {
-  (*reg<runsingle_t>())[lang] = runsingle;
-  (*reg<runsimulation_t>())[lang] = runsimulation;
+void RegisterLanguage(const char *lang,
+                      std::unique_ptr<LanguageInterface> interface) {
+  (*registry())[lang] = std::move(interface);
 }
