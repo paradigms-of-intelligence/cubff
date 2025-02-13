@@ -84,7 +84,6 @@ struct SimulationState {
   float higher_entropy;
   std::array<std::pair<std::string, float>, 16> frequent_bytes;
   std::array<std::pair<std::string, float>, 16> uncommon_bytes;
-  std::function<void(size_t)> print_program;
 };
 
 struct LanguageInterface {
@@ -92,6 +91,9 @@ struct LanguageInterface {
                                 bool debug) const = 0;
   virtual void RunSingleParsedProgram(const std::vector<uint8_t> &parsed,
                                       size_t stepcount, bool debug) const = 0;
+  virtual void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
+                            const size_t *separators,
+                            size_t num_separators) const = 0;
   virtual void RunSimulation(
       const SimulationParams &params,
       std::optional<std::string> initial_program,
@@ -103,6 +105,9 @@ template <typename Language>
 struct Simulation : public LanguageInterface {
   void RunSingleProgram(std::string program, size_t stepcount,
                         bool debug) const override;
+  void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
+                    const size_t *separators,
+                    size_t num_separators) const override;
   void RunSingleParsedProgram(const std::vector<uint8_t> &parsed,
                               size_t stepcount, bool debug) const override;
   void RunSimulation(

@@ -15,17 +15,17 @@
 from bin import cubff
 
 
+language = cubff.GetLanguage("bff_noheads")
+
 def callback(state):
     print(state.epoch, state.brotli_size)
-    state.print_program(1)
+    language.PrintProgram(1024, state.soup[:128], [64])
     return state.epoch > 1024
 
 
 params = cubff.SimulationParams()
 params.num_programs = 131072
 params.seed = 0
-
-language = cubff.GetLanguage("bff_noheads")
 
 cubff.ResetColors()
 language.RunSimulation(params, None, callback)

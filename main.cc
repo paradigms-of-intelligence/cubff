@@ -353,7 +353,10 @@ int main(int argc, char **argv) {
 
         for (size_t i = 0; i < std::min<size_t>(48, params.num_programs / 2);
              i++) {
-          state.print_program(i);
+          size_t separators[1] = {kSingleTapeSize};
+          language->PrintProgram(2 * kSingleTapeSize,
+                                 state.soup.data() + i * 2 * kSingleTapeSize,
+                                 2 * kSingleTapeSize, separators, 1);
         }
         fflush(stdout);
       }

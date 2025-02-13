@@ -66,7 +66,7 @@ struct Subleq {
 
   static __device__ __host__ void PrintProgramInternal(
       size_t head0_pos, size_t head1_pos, size_t pc_pos, const uint8_t *mem,
-      size_t len, const uint8_t *mem2, size_t len2) {
+      size_t len, const size_t *separators, size_t num_separators) {
     auto print_char = [&](char c, size_t i) {
       bool color = false;
       if (i == pc_pos || i == pc_pos + 1 || i == pc_pos + 2) {
@@ -86,24 +86,22 @@ struct Subleq {
         printf("\x1b[;m");
       }
     };
+    size_t sep_id = 0;
     for (size_t i = 0; i < len; i++) {
+      if (sep_id < num_separators && separators[sep_id] == i) {
+        printf("   ");
+        sep_id++;
+      }
       char c = mem[i];
       print_char(c, i);
-    }
-    if (mem2) {
-      printf("   ");
-      for (size_t i = len; i < len + len2; i++) {
-        char c = mem2[i - len];
-        print_char(c, i);
-      }
     }
     printf("\n");
   }
 
   static void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
-                           const uint8_t *mem2, size_t len2) {
+                           const size_t *separators, size_t num_separators) {
     PrintProgramInternal(2 * kSingleTapeSize, 2 * kSingleTapeSize, pc_pos, mem,
-                         len, mem2, len2);
+                         len, separators, num_separators);
   }
 
   static __device__ size_t Evaluate(uint8_t *tape, size_t stepcount,

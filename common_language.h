@@ -221,6 +221,13 @@ void Simulation<Language>::RunSingleProgram(std::string program,
 }
 
 template <typename Language>
+void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
+                                        size_t len, const size_t *separators,
+                                        size_t num_separators) const {
+  Language::PrintProgram(pc_pos, mem, len, separators, num_separators);
+}
+
+template <typename Language>
 void Simulation<Language>::RunSimulation(
     const SimulationParams &params, std::optional<std::string> initial_program,
     std::function<bool(const SimulationState &)> callback) const {
@@ -266,12 +273,6 @@ void Simulation<Language>::RunSimulation(
   state.soup.resize(num_programs * kSingleTapeSize);
   state.shuffle_idx.resize(num_programs);
   Language::InitByteColors(state.byte_colors);
-
-  state.print_program = [&](size_t i) {
-    const uint8_t *ptr = state.soup.data() + 2 * i * kSingleTapeSize;
-    Language::PrintProgram(2 * kSingleTapeSize, ptr, kSingleTapeSize,
-                           ptr + kSingleTapeSize, kSingleTapeSize);
-  };
 
   if (params.save_to.has_value()) {
     CHECK(mkdir(params.save_to->c_str(),
