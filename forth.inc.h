@@ -65,16 +65,11 @@ struct Forth {
       size_t pc_pos, const uint8_t *mem, size_t len, const uint8_t *mem2,
       size_t len2, const uint8_t *stack, size_t stack_len) {
     auto print_char = [&](char c, size_t i) {
-      bool color = false;
       if (i == pc_pos) {
-        printf("\x1b[33;1m");
-        color = true;
+        printf("\x1b[48:5:22m");
       }
       char chmem[4];
-      printf("%s", MapChar(c, chmem));
-      if (color) {
-        printf("\x1b[;m");
-      }
+      printf("\x1b[38:5:250m%s%s", MapChar(c, chmem), ResetColors());
     };
     for (size_t i = 0; i < len; i++) {
       char c = mem[i];

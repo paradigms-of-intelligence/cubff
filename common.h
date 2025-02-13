@@ -42,6 +42,14 @@
                      &Simulation<L>::RunSimulation);              \
   }
 
+#ifdef __CUDACC__
+__device__ __host__
+#endif
+    inline constexpr const char *
+    ResetColors() {
+  return "\x1b[0;38:5:35;48:5:232m";
+}
+
 constexpr int kSingleTapeSize = 64;
 
 struct SimulationParams {

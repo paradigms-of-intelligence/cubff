@@ -54,7 +54,7 @@ bin/main: build/main.o build/common.o ${LANGS}
 build/%.o: %.cc common.h common_language.h
 	${COMPILER} -c ${COMPILE_FLAGS} $< -o $@
 
-build/%.o: %.cu common.h common_language.h forth.inc.h
+build/%.o: %.cu common.h common_language.h forth.inc.h bff.inc.h
 	${COMPILER} -c ${COMPILE_FLAGS} $< -o $@
 
 build/cubff_py.o: cubff_py.cc common.h
