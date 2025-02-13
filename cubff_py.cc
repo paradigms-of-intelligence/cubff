@@ -66,5 +66,9 @@ PYBIND11_MODULE(cubff, m) {
       .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes)
       .def_readonly("print_program", &SimulationState::print_program);
 
-  m.def("RunSimulation", &RunSimulation);
+  pybind11::class_<LanguageInterface>(m, "LanguageInterface")
+      .def("RunSimulation", &LanguageInterface::RunSimulation)
+      .def("RunSingleProgram", &LanguageInterface::RunSingleProgram);
+
+  m.def("GetLanguage", &GetLanguage);
 }
