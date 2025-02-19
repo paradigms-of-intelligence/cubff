@@ -16,8 +16,13 @@
 
 #include <stdint.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
+#include <random>
 #include <vector>
 
 #include "common.h"
@@ -195,6 +200,38 @@ __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
 }
 
 template <typename Language>
+__global__ void CheckSelfRep(uint8_t *programs, size_t seed,
+                             size_t num_programs, size_t num_iters,
+                             size_t *result) {
+  size_t index = GetIndex();
+  uint8_t tape[2 * kSingleTapeSize] = {};
+  if (index > +num_programs) return;
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    tape[i] = programs[index * kSingleTapeSize + i];
+    tape[i + kSingleTapeSize] =
+        SplitMix64((num_programs * seed + index + num_iters) * kSingleTapeSize +
+                   i) %
+        256;
+  }
+  for (int i = 0; i < num_iters; i++) {
+    bool debug = false;
+    Language::Evaluate(tape, 8 * 1024, debug);
+    for (int j = 0; j < kSingleTapeSize; j++) {
+      tape[j] = tape[j + kSingleTapeSize];
+      tape[j + kSingleTapeSize] =
+          SplitMix64((num_programs * seed + index + j) * kSingleTapeSize + i) %
+          256;
+    }
+  }
+
+  size_t same = 0;
+  for (int i = 0; i < kSingleTapeSize; ++i) {
+    if (tape[i] == programs[index * kSingleTapeSize + i]) same++;
+  }
+  result[index] = same;
+}
+
+template <typename Language>
 void Simulation<Language>::RunSingleParsedProgram(
     const std::vector<uint8_t> &parsed, size_t stepcount, bool debug) const {
   DeviceMemory<uint8_t> mem(kSingleTapeSize * 2);
@@ -271,6 +308,7 @@ void Simulation<Language>::RunSimulation(
   SimulationState state;
   state.soup.reserve(num_programs * kSingleTapeSize + 16);
   state.soup.resize(num_programs * kSingleTapeSize);
+  state.replication_per_prog.resize(num_programs);
   state.shuffle_idx.resize(num_programs);
   Language::InitByteColors(state.byte_colors);
 
@@ -445,6 +483,13 @@ void Simulation<Language>::RunSimulation(
             counts[(int)c] * 1.0 / state.soup.size();
       }
 
+      if (params.eval_selfrep) {
+        DeviceMemory<size_t> result(num_programs);
+        RUN(num_programs / kNumThreads, kNumThreads, CheckSelfRep<Language>,
+            programs.Get(), seed(epoch), num_programs, 5, result.Get());
+        Synchronize();
+        result.Read(state.replication_per_prog.data(), num_programs);
+      }
       if (params.save_to.has_value() && (epoch % params.save_interval == 0)) {
         std::vector<char> save_path(params.save_to->size() + 20);
         snprintf(save_path.data(), save_path.size(), "%s/%010zu.dat",

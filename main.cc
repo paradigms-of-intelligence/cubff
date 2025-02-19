@@ -199,6 +199,7 @@ FLAG(bool, permute_programs, true,
      "do not shuffle programs between runs (cyclic interactions)");
 FLAG(bool, fixed_shuffle, false, "deterministic shuffling pattern");
 FLAG(bool, zero_init, false, "zero init");
+FLAG(bool, eval_selfrep, false, "evaluate self replication in every epoch");
 FLAG(size_t, print_interval, 64, "interval between prints");
 FLAG(size_t, save_interval, 256, "interval between saves");
 FLAG(size_t, clear_interval, 2048, "interval between clears");
@@ -224,6 +225,7 @@ int main(int argc, char **argv) {
   params.permute_programs = GetFlag(FLAGS_permute_programs);
   params.fixed_shuffle = GetFlag(FLAGS_fixed_shuffle);
   params.zero_init = GetFlag(FLAGS_zero_init);
+  params.eval_selfrep = GetFlag(FLAGS_eval_selfrep);
   params.save_to = GetFlag(FLAGS_checkpoint_dir);
   params.save_interval = GetFlag(FLAGS_save_interval);
   if (params.fixed_shuffle &&
@@ -327,6 +329,12 @@ int main(int argc, char **argv) {
     }
 
     auto callback = [&](const SimulationState &state) {
+      int repl_count = 0;
+      for (int i = 0; i < state.replication_per_prog.size(); i++) {
+        if (state.replication_per_prog[i] > (2 * kSingleTapeSize) / 3) {
+          repl_count++;
+        }
+      }
       if (!GetFlag(FLAGS_disable_output)) {
         if (state.epoch % clear_interval == 1) {
           printf("%s\033[2J\033[H", ResetColors());
@@ -335,10 +343,10 @@ int main(int argc, char **argv) {
             "%s\033[0;0H    Elapsed: %10.3f        ops: %23zu     "
             "MOps/s: %12.3f Epochs: %13zu ops/prog/epoch: %10.3f\n"
             "Brotli size: %10zu Brotli bpb: %23.4f bytes/prog: %12.4f     H0: "
-            "%13.4f higher entropy: %10.6f\n",
+            "%13.4f higher entropy: %10.6f number of repicators: %10d\n",
             ResetColors(), state.elapsed_s, state.total_ops, state.mops_s,
             state.epoch, state.ops_per_run, state.brotli_size, state.brotli_bpb,
-            state.bytes_per_prog, state.h0, state.higher_entropy);
+            state.bytes_per_prog, state.h0, state.higher_entropy, repl_count);
 
         for (auto [s, f] : state.frequent_bytes) {
           printf("\033[37;1m%s%s %5.2f%% ", s.c_str(), ResetColors(),
