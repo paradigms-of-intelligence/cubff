@@ -26,6 +26,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -65,6 +66,7 @@ struct SimulationParams {
   bool permute_programs = true;
   bool fixed_shuffle = false;
   bool zero_init = false;
+  bool eval_selfrep = false;
   std::vector<std::vector<uint32_t>> allowed_interactions;
 };
 
@@ -84,6 +86,7 @@ struct SimulationState {
   float higher_entropy;
   std::array<std::pair<std::string, float>, 16> frequent_bytes;
   std::array<std::pair<std::string, float>, 16> uncommon_bytes;
+  std::vector<size_t> replication_per_prog;
 };
 
 struct LanguageInterface {
