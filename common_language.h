@@ -212,7 +212,7 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
     tape[i + kSingleTapeSize] = SplitMix64(local_seed ^ SplitMix64(i)) % 256;
   }
   size_t same = 65;
-  for (int i = 0; i < num_iters; i++) {
+  for (size_t i = 0; i < num_iters; i++) {
     bool debug = false;
     Language::Evaluate(tape, 8 * 1024, debug);
     for (int j = 0; j < kSingleTapeSize; j++) {
