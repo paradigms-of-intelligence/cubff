@@ -16,24 +16,36 @@ from bin import cubff
 import sys
 
 
-TARGET_EPOCH = 3713
 STATES_TO_KEEP = 128
+THRESHOLD_SCORE = 48
 
 states = []
+cur_index = -1
 
 
 def callback(state):
-    print(f"collecting states: {state.epoch:5}/{TARGET_EPOCH:5}", end="\r")
+    print(f"collecting states: {state.epoch:5}", end="\r")
     sys.stdout.flush()
-    if state.epoch > TARGET_EPOCH - STATES_TO_KEEP:
-        states.append(state)
-    return state.epoch >= TARGET_EPOCH
+    global states
+    states.append(state)
+    if len(states) > STATES_TO_KEEP:
+        states = states[1:]
+
+    for i, score in enumerate(state.replication_per_prog):
+        if score >= THRESHOLD_SCORE:
+            print(i, score)
+            global cur_index
+            cur_index = i
+            return True
+
+    return False
 
 
 params = cubff.SimulationParams()
 params.num_programs = 131072
 params.seed = 0
 params.callback_interval = 1
+params.eval_selfrep = True
 
 language = cubff.GetLanguage("bff")
 cubff.ResetColors()
@@ -43,7 +55,7 @@ print("states collected")
 
 print("Commands: l/r to go to the previous epoch focusing on the left/right program, a number to run the current program pair for that number of steps (or until termination)")
 
-cur = 0
+
 cur_epoch = len(states)-1  # index in `states`.
 
 
@@ -51,18 +63,21 @@ def get_prog(epoch, idx):
     return states[epoch - 1].soup[idx * 64:(idx+1)*64]
 
 
+program = get_prog(len(states), cur_index)
+language.PrintProgram(128, program, [64])
+
 while cur_epoch > 1:
     index = 0
-    while states[cur_epoch].shuffle_idx[index] != cur:
+    while states[cur_epoch].shuffle_idx[index] != cur_index:
         index += 1
     if index % 2 == 0:
-        left = cur
+        left = cur_index
         right = states[cur_epoch].shuffle_idx[index+1]
     else:
-        right = cur
+        right = cur_index
         left = states[cur_epoch].shuffle_idx[index-1]
 
-    real_epoch = max(TARGET_EPOCH - 128, 0) + cur_epoch
+    real_epoch = states[cur_epoch].epoch
     print(f"left: {left:5} right: {right:5} epoch: {real_epoch:5}", )
 
     program = cubff.VectorUint8(bytes(get_prog(cur_epoch, left)) +
@@ -74,10 +89,10 @@ while cur_epoch > 1:
         print("command: ", end="")
         command = input()
         if command.strip() == "l":
-            cur = left
+            cur_index = left
             cur_epoch -= 1
         elif command.strip() == "r":
-            cur = right
+            cur_index = right
             cur_epoch -= 1
         else:
             try:
