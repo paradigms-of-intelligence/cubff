@@ -25,11 +25,11 @@ import os
 # TODO: split checkpoints by attempts (we now overwrite overlapping epochs)
 # TODO: log various measurements (higher_entropy, various kinds of loops) at higher granularity than every switch
 
-SEED = 8
-DELAY = 512
+SEED = 10
+DELAY = 128
 LANG = "bff"
 
-CHECKPOINT_DIR = "./avoid-{}-seed{}-delay{}".format(LANG, SEED, DELAY)
+CHECKPOINT_DIR = "./avoid-selfrepdet-{}-seed{}-delay{}".format(LANG, SEED, DELAY)
 
 os.mkdir(CHECKPOINT_DIR)
 
@@ -42,6 +42,7 @@ with open(os.path.join(CHECKPOINT_DIR, "log.txt"), "w") as logfile:
     params.seed = SEED * 1000
     params.save_to = CHECKPOINT_DIR
     params.save_interval = params.callback_interval;
+    params.eval_selfrep = True
     
     i = 0
     prev_start = 0
@@ -63,11 +64,12 @@ with open(os.path.join(CHECKPOINT_DIR, "log.txt"), "w") as logfile:
             for (i, v) in enumerate(headhist):
                 if v >= total/2:
                     mode_diff = i
-            logline = "epoch={} higher_entropy={} head_dist_mode={}".format(state.epoch, state.higher_entropy, mode_diff)
+            max_selfrep = max(state.replication_per_prog)
+            logline = "epoch={} higher_entropy={} head_dist_mode={} max_selfrep={}".format(state.epoch, state.higher_entropy, mode_diff, max_selfrep)
             print(logline + "                     ", end='\r')
             print(logline, file=logfile, flush=True)
             epoch = state.epoch
-            return state.higher_entropy > 3.0
+            return max_selfrep >= 5
         language.RunSimulation(params, None, callback)
         i+=1
         new_epoch = epoch - DELAY - 1
