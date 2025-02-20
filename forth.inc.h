@@ -91,8 +91,10 @@ struct Forth {
     printf("\n");
   }
 
-  static void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
-                           const size_t *separators, size_t num_separators) {
+  static __device__ __host__ void PrintProgram(size_t pc_pos,
+                                               const uint8_t *mem, size_t len,
+                                               const size_t *separators,
+                                               size_t num_separators) {
     PrintProgramInternal(pc_pos, mem, len, separators, num_separators, nullptr,
                          0);
   }

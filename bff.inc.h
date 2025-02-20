@@ -254,8 +254,10 @@ struct Bff {
     printf("\n");
   }
 
-  static void PrintProgram(size_t pc_pos, const uint8_t *mem, size_t len,
-                           const size_t *separators, size_t num_separators) {
+  static __device__ __host__ void PrintProgram(size_t pc_pos,
+                                               const uint8_t *mem, size_t len,
+                                               const size_t *separators,
+                                               size_t num_separators) {
     int head0_pos = 2 * kSingleTapeSize;
     int head1_pos = 2 * kSingleTapeSize;
     int fake_pc = 0;
