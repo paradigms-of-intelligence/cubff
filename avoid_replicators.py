@@ -23,8 +23,9 @@ import os
 # do we care how often we test?
 
 # TODO: split checkpoints by attempts (we now overwrite overlapping epochs)
+# TODO: log various measurements (higher_entropy, various kinds of loops) at higher granularity than every switch
 
-SEED = 2
+SEED = 8
 DELAY = 512
 LANG = "bff"
 
@@ -42,20 +43,42 @@ with open(os.path.join(CHECKPOINT_DIR, "log.txt"), "w") as logfile:
     params.save_to = CHECKPOINT_DIR
     params.save_interval = params.callback_interval;
     
+    i = 0
     prev_start = 0
     while True:
         epoch = 0
+        current_checkpoint_dir = os.path.join(CHECKPOINT_DIR, "{:04}".format(i))
+        params.save_to = current_checkpoint_dir
+        os.mkdir(current_checkpoint_dir)
         def callback(state):
             global epoch
-            print("epoch={}".format(state.epoch), end='\r')
+            headhist = [0] * 128
+            total = 0
+            for i in range(len(state.soup) // 64):
+                head0 = int(state.soup[64*i+0])
+                head1 = int(state.soup[64*i+1])
+                headhist[(128 + head0 - head1) % 128]+=1
+                total+=1
+            mode_diff = -1
+            for (i, v) in enumerate(headhist):
+                if v >= total/2:
+                    mode_diff = i
+            logline = "epoch={} higher_entropy={} head_dist_mode={}".format(state.epoch, state.higher_entropy, mode_diff)
+            print(logline + "                     ", end='\r')
+            print(logline, file=logfile, flush=True)
             epoch = state.epoch
             return state.higher_entropy > 3.0
         language.RunSimulation(params, None, callback)
+        i+=1
         new_epoch = epoch - DELAY - 1
+        if new_epoch < prev_start:
+            # TODO: don't
+            new_epoch = prev_start
+        print("")
         logline="epoch={} seed switch, start epoch={}, diff={}".format(epoch, new_epoch, new_epoch - prev_start)
-        print(logline)
-        print(logline, file=logfile, flush=True)
+        print(logline + "                              ")
+        print("> " + logline, file=logfile, flush=True)
         prev_start = new_epoch
         params.seed += 1
-        params.load_from = os.path.join(CHECKPOINT_DIR, "{:010}.dat".format(new_epoch))
+        params.load_from = os.path.join(current_checkpoint_dir, "{:010}.dat".format(new_epoch))
 
