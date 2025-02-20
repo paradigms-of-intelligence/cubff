@@ -71,14 +71,15 @@ with open(os.path.join(CHECKPOINT_DIR, "log.txt"), "w") as logfile:
         language.RunSimulation(params, None, callback)
         i+=1
         new_epoch = epoch - DELAY - 1
-        if new_epoch < prev_start:
-            # TODO: don't
+        if new_epoch <= prev_start:
+            # TODO: don't when <
             new_epoch = prev_start
+        else:
+            params.load_from = os.path.join(current_checkpoint_dir, "{:010}.dat".format(new_epoch))
         print("")
         logline="epoch={} seed switch, start epoch={}, diff={}".format(epoch, new_epoch, new_epoch - prev_start)
         print(logline + "                              ")
         print("> " + logline, file=logfile, flush=True)
         prev_start = new_epoch
         params.seed += 1
-        params.load_from = os.path.join(current_checkpoint_dir, "{:010}.dat".format(new_epoch))
 
