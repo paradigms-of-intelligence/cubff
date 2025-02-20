@@ -201,9 +201,9 @@ __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
 
 template <typename Language>
 __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
-                             size_t num_programs, size_t num_iters,
-                             size_t *result) {
+                             size_t num_programs, size_t *result) {
   size_t index = GetIndex();
+  constexpr size_t num_iters = 7;
   uint8_t tape[2 * kSingleTapeSize] = {};
   if (index > num_programs) return;
   uint64_t local_seed = SplitMix64(num_programs * seed + index);
@@ -211,23 +211,46 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
     tape[i] = programs[index * kSingleTapeSize + i];
     tape[i + kSingleTapeSize] = SplitMix64(local_seed ^ SplitMix64(i)) % 256;
   }
-  size_t same = 65;
+  size_t same[num_iters];
   for (int i = 0; i < num_iters; i++) {
     bool debug = false;
+    for (int j = 0; j < kSingleTapeSize; j++) {
+      tape[j] = programs[index * kSingleTapeSize + j];
+      tape[j + kSingleTapeSize] =
+          SplitMix64(local_seed ^
+                     SplitMix64((i + 1) * 2 * kSingleTapeSize + j)) %
+          256;
+    }
     Language::Evaluate(tape, 8 * 1024, debug);
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = tape[j + kSingleTapeSize];
       tape[j + kSingleTapeSize] =
-          SplitMix64(local_seed ^ SplitMix64((i + 1) * kSingleTapeSize + j)) %
+          SplitMix64(local_seed ^
+                     SplitMix64(((i + 1) * 2 + 1) * kSingleTapeSize + j)) %
           256;
     }
+    Language::Evaluate(tape, 8 * 1024, debug);
     size_t local_same = 0;
-    for (int i = 0; i < kSingleTapeSize; ++i) {
-      if (tape[i] == programs[index * kSingleTapeSize + i]) local_same++;
+    for (int j = 0; j < kSingleTapeSize; ++j) {
+      if (tape[j + kSingleTapeSize] == programs[index * kSingleTapeSize + j])
+        local_same++;
     }
-    same = same < local_same ? same : local_same;
+    same[i] = local_same;
   }
-  result[index] = same;
+  size_t max1 = 0, max2 = 0, max3 = 0;
+  for (int i = 0; i < num_iters; ++i) {
+    if (same[i] >= max1) {
+      max3 = max2;
+      max2 = max1;
+      max1 = same[i];
+    } else if (same[i] >= max2) {
+      max3 = max2;
+      max2 = same[i];
+    } else if (same[i] >= max3) {
+      max3 = same[i];
+    }
+  }
+  result[index] = max3;
 }
 
 template <typename Language>
@@ -485,7 +508,7 @@ void Simulation<Language>::RunSimulation(
       if (params.eval_selfrep) {
         DeviceMemory<size_t> result(num_programs);
         RUN(num_programs / kNumThreads, kNumThreads, CheckSelfRep<Language>,
-            programs.Get(), seed(epoch), num_programs, 5, result.Get());
+            programs.Get(), seed(epoch), num_programs, result.Get());
         Synchronize();
         result.Read(state.replication_per_prog.data(), num_programs);
       }
