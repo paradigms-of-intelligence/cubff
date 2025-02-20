@@ -205,28 +205,27 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
                              size_t *result) {
   size_t index = GetIndex();
   uint8_t tape[2 * kSingleTapeSize] = {};
-  if (index > +num_programs) return;
+  if (index > num_programs) return;
+  uint64_t local_seed = SplitMix64(num_programs * seed + index);
   for (size_t i = 0; i < kSingleTapeSize; i++) {
     tape[i] = programs[index * kSingleTapeSize + i];
-    tape[i + kSingleTapeSize] =
-        SplitMix64((num_programs * seed + index + num_iters) * kSingleTapeSize +
-                   i) %
-        256;
+    tape[i + kSingleTapeSize] = SplitMix64(local_seed ^ SplitMix64(i)) % 256;
   }
+  size_t same = 65;
   for (int i = 0; i < num_iters; i++) {
     bool debug = false;
     Language::Evaluate(tape, 8 * 1024, debug);
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = tape[j + kSingleTapeSize];
       tape[j + kSingleTapeSize] =
-          SplitMix64((num_programs * seed + index + j) * kSingleTapeSize + i) %
+          SplitMix64(local_seed ^ SplitMix64((i + 1) * kSingleTapeSize + j)) %
           256;
     }
-  }
-
-  size_t same = 0;
-  for (int i = 0; i < kSingleTapeSize; ++i) {
-    if (tape[i] == programs[index * kSingleTapeSize + i]) same++;
+    size_t local_same = 0;
+    for (int i = 0; i < kSingleTapeSize; ++i) {
+      if (tape[i] == programs[index * kSingleTapeSize + i]) local_same++;
+    }
+    same = same < local_same ? same : local_same;
   }
   result[index] = same;
 }
