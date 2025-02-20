@@ -46,6 +46,7 @@ PYBIND11_MODULE(cubff, m) {
       .def_readwrite("zero_init", &SimulationParams::zero_init)
       .def_readwrite("allowed_interactions",
                      &SimulationParams::allowed_interactions)
+      .def_readwrite("eval_selfrep", &SimulationParams::eval_selfrep)
       .def(pybind11::init<>());
 
   py::bind_vector<std::vector<uint8_t>>(m, "VectorUint8",
@@ -67,7 +68,8 @@ PYBIND11_MODULE(cubff, m) {
       .def_readonly("h0", &SimulationState::h0)
       .def_readonly("higher_entropy", &SimulationState::higher_entropy)
       .def_readonly("frequent_bytes", &SimulationState::frequent_bytes)
-      .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes);
+      .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes)
+      .def_readonly("replication_per_prog", &SimulationState::replication_per_prog);
 
   pybind11::class_<LanguageInterface>(m, "LanguageInterface")
       .def("PrintProgram",
