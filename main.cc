@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
 
     auto callback = [&](const SimulationState &state) {
       int repl_count = 0;
-      for (int i = 0; i < state.replication_per_prog.size(); i++) {
+      for (size_t i = 0; i < state.replication_per_prog.size(); i++) {
         if (state.replication_per_prog[i] > (2 * kSingleTapeSize) / 3) {
           repl_count++;
         }
