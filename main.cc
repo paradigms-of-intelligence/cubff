@@ -346,7 +346,8 @@ int main(int argc, char **argv) {
             "%13.4f higher entropy: %10.6f number of repicators: %10d\n",
             ResetColors(), state.elapsed_s, state.total_ops, state.mops_s,
             state.epoch, state.ops_per_run, state.brotli_size, state.brotli_bpb,
-            state.bytes_per_prog, state.h0, state.higher_entropy, repl_count);
+            state.bytes_per_prog, state.h0, state.higher_entropy,
+            (params.eval_selfrep ? repl_count : -1));
 
         for (auto [s, f] : state.frequent_bytes) {
           printf("\033[37;1m%s%s %5.2f%% ", s.c_str(), ResetColors(),
