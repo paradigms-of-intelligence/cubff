@@ -363,6 +363,9 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < std::min<size_t>(48, params.num_programs / 2);
              i++) {
           size_t separators[1] = {kSingleTapeSize};
+          if (params.eval_selfrep) {
+            printf("%02d %02d ", (int)state.replication_per_prog[2*i], (int)state.replication_per_prog[2*i+1]);
+          }
           language->PrintProgram(2 * kSingleTapeSize,
                                  state.soup.data() + i * 2 * kSingleTapeSize,
                                  2 * kSingleTapeSize, separators, 1);
