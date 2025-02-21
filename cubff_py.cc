@@ -89,4 +89,5 @@ PYBIND11_MODULE(cubff, m) {
     printf("%s", ResetColors());
     fflush(stdout);
   });
+  m.attr("kSelfrepThreshold") = kSelfrepThreshold;
 }

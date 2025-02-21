@@ -53,6 +53,7 @@ __device__ __host__
 }
 
 constexpr int kSingleTapeSize = 64;
+constexpr int kSelfrepThreshold = 5;
 
 struct SimulationParams {
   size_t num_programs = 128 * 1024;
@@ -102,7 +103,8 @@ struct LanguageInterface {
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const = 0;
   virtual ~LanguageInterface() {}
-  virtual bool EvalSelfrep(std::string program) = 0;
+  virtual size_t EvalSelfrep(std::string program) = 0;
+  virtual size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed) = 0;
 };
 
 template <typename Language>
@@ -118,7 +120,8 @@ struct Simulation : public LanguageInterface {
       const SimulationParams &params,
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const override;
-  bool EvalSelfrep(std::string program) override;
+  size_t EvalSelfrep(std::string program) override;
+  size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed) override;
 };
 
 void RegisterLanguage(const char *lang,
