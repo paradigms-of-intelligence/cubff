@@ -210,6 +210,8 @@ FLAG(std::string, draw_to_2d, "",
      "be a square number)");
 FLAG(size_t, grid_width_2d, 0, "width of the 2d grid");
 FLAG(bool, disable_output, false, "disable printing to stdout");
+FLAG(std::optional<size_t>, stopping_selfrep_count, std::nullopt, "stop when "
+    "that many programs appear to be self-replicators");
 
 int main(int argc, char **argv) {
   flags::ParseCommandLine(argc, argv);
@@ -301,6 +303,12 @@ int main(int argc, char **argv) {
   uint32_t clear_interval = GetFlag(FLAGS_clear_interval);
   std::optional<size_t> max_epochs = GetFlag(FLAGS_max_epochs);
   std::optional<size_t> stopping_bpb = GetFlag(FLAGS_stopping_bpb);
+  std::optional<size_t> stopping_selfrep_count = GetFlag(FLAGS_stopping_selfrep_count);
+
+  if (stopping_selfrep_count.has_value() && !params.eval_selfrep) {
+    fprintf(stderr, "stopping_selfrep_count requires eval_selfrep\n");
+    return 1;
+  }
 
   if (params.save_interval % print_interval != 0) {
     fprintf(stderr, "save interval must be divisible by print interval\n");
@@ -440,6 +448,9 @@ int main(int argc, char **argv) {
       if (stopping_bpb.has_value() && state.brotli_bpb < *stopping_bpb) {
         return true;
       };
+      if (stopping_selfrep_count.has_value() && repl_count >= *stopping_selfrep_count) {
+        return true;
+      }
       return false;
     };
 
