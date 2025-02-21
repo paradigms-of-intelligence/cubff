@@ -102,6 +102,7 @@ struct LanguageInterface {
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const = 0;
   virtual ~LanguageInterface() {}
+  virtual bool EvalSelfrep(std::string program) = 0;
 };
 
 template <typename Language>
@@ -117,6 +118,7 @@ struct Simulation : public LanguageInterface {
       const SimulationParams &params,
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const override;
+  bool EvalSelfrep(std::string program) override;
 };
 
 void RegisterLanguage(const char *lang,

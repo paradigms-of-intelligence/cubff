@@ -23,6 +23,7 @@
 #include <cstring>
 #include <functional>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "common.h"
@@ -286,6 +287,22 @@ void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
                                         size_t len, const size_t *separators,
                                         size_t num_separators) const {
   Language::PrintProgram(pc_pos, mem, len, separators, num_separators);
+}
+
+template <typename Language>
+bool Simulation<Language>::EvalSelfrep(std::string program) {
+  DeviceMemory<uint8_t> mem(kSingleTapeSize);
+  std::vector<uint8_t> parsed = Language::Parse(program);
+  uint8_t zero[kSingleTapeSize] = {};
+  memcpy(zero, parsed.data(), parsed.size());
+  mem.Write(zero, kSingleTapeSize);
+  DeviceMemory<size_t> result(1);
+  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), 0, 1, result.Get());
+
+  Synchronize();
+  std::vector<size_t> res(1);
+  result.Read(res.data(), 1);
+  return res[0] > kSingleTapeSize / 2;
 }
 
 template <typename Language>
