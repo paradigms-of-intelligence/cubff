@@ -23,6 +23,7 @@
 #include <cstring>
 #include <functional>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "common.h"
@@ -211,8 +212,8 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
     tape[i] = programs[index * kSingleTapeSize + i];
     tape[i + kSingleTapeSize] = SplitMix64(local_seed ^ SplitMix64(i)) % 256;
   }
-  size_t counter[kSingleTapeSize] = { };
-  uint8_t majority[kSingleTapeSize] = { };
+  size_t counter[kSingleTapeSize] = {};
+  uint8_t majority[kSingleTapeSize] = {};
   for (size_t i = 0; i < num_iters; i++) {
     bool debug = false;
     for (int j = 0; j < kSingleTapeSize; j++) {
@@ -286,6 +287,27 @@ void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
                                         size_t len, const size_t *separators,
                                         size_t num_separators) const {
   Language::PrintProgram(pc_pos, mem, len, separators, num_separators);
+}
+
+template <typename Language>
+size_t Simulation<Language>::EvalSelfrep(std::string program) {
+  std::vector<uint8_t> parsed = Language::Parse(program);
+  return EvalParsedSelfrep(parsed);
+}
+
+template <typename Language>
+size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t> &parsed) {
+  DeviceMemory<uint8_t> mem(kSingleTapeSize);
+  uint8_t zero[kSingleTapeSize] = {};
+  memcpy(zero, parsed.data(), parsed.size());
+  mem.Write(zero, kSingleTapeSize);
+  DeviceMemory<size_t> result(1);
+  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), 0, 1, result.Get());
+
+  Synchronize();
+  std::vector<size_t> res(1);
+  result.Read(res.data(), 1);
+  return res[0];
 }
 
 template <typename Language>

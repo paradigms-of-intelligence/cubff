@@ -69,7 +69,8 @@ PYBIND11_MODULE(cubff, m) {
       .def_readonly("higher_entropy", &SimulationState::higher_entropy)
       .def_readonly("frequent_bytes", &SimulationState::frequent_bytes)
       .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes)
-      .def_readonly("replication_per_prog", &SimulationState::replication_per_prog);
+      .def_readonly("replication_per_prog",
+                    &SimulationState::replication_per_prog);
 
   pybind11::class_<LanguageInterface>(m, "LanguageInterface")
       .def("PrintProgram",
@@ -81,12 +82,14 @@ PYBIND11_MODULE(cubff, m) {
            })
       .def("RunSimulation", &LanguageInterface::RunSimulation)
       .def("RunSingleProgram", &LanguageInterface::RunSingleProgram)
-      .def("RunSingleParsedProgram",
-           &LanguageInterface::RunSingleParsedProgram);
+      .def("RunSingleParsedProgram", &LanguageInterface::RunSingleParsedProgram)
+      .def("EvalSelfrep", &LanguageInterface::EvalSelfrep)
+      .def("EvalParsedSelfrep", &LanguageInterface::EvalParsedSelfrep);
 
   m.def("GetLanguage", &GetLanguage, py::return_value_policy::reference);
   m.def("ResetColors", []() {
     printf("%s", ResetColors());
     fflush(stdout);
   });
+  m.attr("kSelfrepThreshold") = kSelfrepThreshold;
 }
