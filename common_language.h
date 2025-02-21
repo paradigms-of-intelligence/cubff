@@ -211,8 +211,9 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
     tape[i] = programs[index * kSingleTapeSize + i];
     tape[i + kSingleTapeSize] = SplitMix64(local_seed ^ SplitMix64(i)) % 256;
   }
-  size_t same[num_iters];
-  for (int i = 0; i < num_iters; i++) {
+  size_t counter[kSingleTapeSize] = { };
+  uint8_t majority[kSingleTapeSize] = { };
+  for (size_t i = 0; i < num_iters; i++) {
     bool debug = false;
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = programs[index * kSingleTapeSize + j];
@@ -230,27 +231,28 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
           256;
     }
     Language::Evaluate(tape, 8 * 1024, debug);
-    size_t local_same = 0;
     for (int j = 0; j < kSingleTapeSize; ++j) {
-      if (tape[j + kSingleTapeSize] == programs[index * kSingleTapeSize + j])
-        local_same++;
-    }
-    same[i] = local_same;
-  }
-  size_t max1 = 0, max2 = 0, max3 = 0;
-  for (int i = 0; i < num_iters; ++i) {
-    if (same[i] >= max1) {
-      max3 = max2;
-      max2 = max1;
-      max1 = same[i];
-    } else if (same[i] >= max2) {
-      max3 = max2;
-      max2 = same[i];
-    } else if (same[i] >= max3) {
-      max3 = same[i];
+      uint8_t c = tape[j + kSingleTapeSize];
+      if (counter[j] == 0) {
+        majority[j] = c;
+        counter[j] = 1;
+      } else if (c == majority[j]) {
+        counter[j]++;
+      } else {
+        counter[j]--;
+      }
     }
   }
-  result[index] = max3;
+  size_t res = 0;
+  for (int i = 0; i < kSingleTapeSize; ++i) {
+    // This is always true when 3/4 of num_iters produce the same value and
+    // sometimes (depending on the order) true when 1/2 of them have the same
+    // value.
+    if (counter[i] > num_iters / 2) {
+      res++;
+    }
+  }
+  result[index] = res;
 }
 
 template <typename Language>
