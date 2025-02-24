@@ -210,7 +210,7 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
   uint64_t local_seed = SplitMix64(num_programs * seed + index);
   for (size_t i = 0; i < num_iters; i++) {
     bool debug = false;
-    uint8_t* tape = &tapes[i][0];
+    uint8_t *tape = &tapes[i][0];
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = programs[index * kSingleTapeSize + j];
       tape[j + kSingleTapeSize] =
@@ -228,21 +228,20 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
     }
     Language::Evaluate(tape, 8 * 1024, debug);
   }
-  size_t res = 0;
-  for (int i = 0; i < kSingleTapeSize; ++i) {
-    for(size_t a = 0; a < num_iters; a++) {
+  size_t res[2] = {};
+  for (int i = 0; i < 2 * kSingleTapeSize; ++i) {
+    for (size_t a = 0; a < num_iters; a++) {
       size_t count = 1;
-      for(size_t b = a + 1; b < num_iters; b++) {
-        if (tapes[a][i + kSingleTapeSize] == tapes[b][i + kSingleTapeSize])
-          count++;
+      for (size_t b = a + 1; b < num_iters; b++) {
+        if (tapes[a][i] == tapes[b][i]) count++;
       }
-      if (count > num_iters/2) {
-        res++;
+      if (count > num_iters / 2) {
+        res[i / kSingleTapeSize]++;
         break;
       }
     }
   }
-  result[index] = res;
+  result[index] = std::min(res[0], res[1]);
 }
 
 template <typename Language>
