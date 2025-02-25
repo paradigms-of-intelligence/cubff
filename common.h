@@ -103,8 +103,10 @@ struct LanguageInterface {
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const = 0;
   virtual ~LanguageInterface() {}
-  virtual size_t EvalSelfrep(std::string program) = 0;
-  virtual size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed) = 0;
+  virtual size_t EvalSelfrep(std::string program, size_t epoch,
+                             size_t seed) = 0;
+  virtual size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed, size_t epoch,
+                                   size_t seed) = 0;
 };
 
 template <typename Language>
@@ -120,8 +122,9 @@ struct Simulation : public LanguageInterface {
       const SimulationParams &params,
       std::optional<std::string> initial_program,
       std::function<bool(const SimulationState &)> callback) const override;
-  size_t EvalSelfrep(std::string program) override;
-  size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed) override;
+  size_t EvalSelfrep(std::string program, size_t epoch, size_t seed) override;
+  size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed, size_t epoch,
+                           size_t seed) override;
 };
 
 void RegisterLanguage(const char *lang,
