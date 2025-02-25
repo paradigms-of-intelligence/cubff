@@ -294,7 +294,7 @@ size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t> &parsed,
   mem.Write(zero, kSingleTapeSize);
   DeviceMemory<size_t> result(1);
   size_t epoch_seed = SplitMix64(SplitMix64(seed) ^ SplitMix64(epoch));
-  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), seed, 1, result.Get());
+  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), epoch_seed, 1, result.Get());
 
   Synchronize();
   std::vector<size_t> res(1);
