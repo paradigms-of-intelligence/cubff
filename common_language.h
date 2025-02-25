@@ -202,14 +202,14 @@ __global__ void RunOneProgram(uint8_t *program, size_t stepcount, bool debug) {
 
 template <typename Language>
 __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
-                             size_t num_programs, size_t *result) {
+                             size_t num_programs, size_t *result, bool debug) {
   size_t index = GetIndex();
   constexpr size_t num_iters = 7;
   uint8_t tapes[num_iters][2 * kSingleTapeSize] = {};
   if (index > num_programs) return;
   uint64_t local_seed = SplitMix64(num_programs * seed + index);
   for (size_t i = 0; i < num_iters; i++) {
-    bool debug = false;
+    bool eval_debug = false;
     uint8_t *tape = &tapes[i][0];
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = programs[index * kSingleTapeSize + j];
@@ -218,7 +218,19 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
                      SplitMix64((i + 1) * 2 * kSingleTapeSize + j)) %
           256;
     }
-    Language::Evaluate(tape, 8 * 1024, debug);
+    if (debug) {
+      size_t separators[1] = {kSingleTapeSize};
+      printf("Iteration %lu: before first step\n", i);
+      Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
+                             separators, 1);
+    }
+    Language::Evaluate(tape, 8 * 1024, eval_debug);
+    if (debug) {
+      size_t separators[1] = {kSingleTapeSize};
+      printf("Iteration %lu: after first step\n", i);
+      Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
+                             separators, 1);
+    }
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = tape[j + kSingleTapeSize];
       tape[j + kSingleTapeSize] =
@@ -226,7 +238,19 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
                      SplitMix64(((i + 1) * 2 + 1) * kSingleTapeSize + j)) %
           256;
     }
-    Language::Evaluate(tape, 8 * 1024, debug);
+    if (debug) {
+      size_t separators[1] = {kSingleTapeSize};
+      printf("Iteration %lu: before second step\n", i);
+      Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
+                             separators, 1);
+    }
+    Language::Evaluate(tape, 8 * 1024, eval_debug);
+    if (debug) {
+      size_t separators[1] = {kSingleTapeSize};
+      printf("Iteration %lu: after second step\n", i);
+      Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
+                             separators, 1);
+    }
   }
   size_t res[2] = {};
   for (int i = 0; i < 2 * kSingleTapeSize; ++i) {
@@ -241,7 +265,7 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
       }
     }
   }
-  result[index] = std::min(res[0], res[1]);
+  result[index] = res[0] < res[1] ? res[0] : res[1];
 }
 
 template <typename Language>
@@ -279,21 +303,23 @@ void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
 
 template <typename Language>
 size_t Simulation<Language>::EvalSelfrep(std::string program, size_t epoch,
-                                         size_t seed) {
+                                         size_t seed, bool debug) {
   std::vector<uint8_t> parsed = Language::Parse(program);
-  return EvalParsedSelfrep(parsed, epoch, seed);
+  return EvalParsedSelfrep(parsed, epoch, seed, debug);
 }
 
 template <typename Language>
 size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t> &parsed,
-                                               size_t epoch, size_t seed) {
+                                               size_t epoch, size_t seed,
+                                               bool debug) {
   DeviceMemory<uint8_t> mem(kSingleTapeSize);
   uint8_t zero[kSingleTapeSize] = {};
   memcpy(zero, parsed.data(), parsed.size());
   mem.Write(zero, kSingleTapeSize);
   DeviceMemory<size_t> result(1);
   size_t epoch_seed = SplitMix64(SplitMix64(seed) ^ SplitMix64(epoch));
-  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), epoch_seed, 1, result.Get());
+  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), epoch_seed, 1, result.Get(),
+      debug);
 
   Synchronize();
   std::vector<size_t> res(1);
@@ -523,7 +549,7 @@ void Simulation<Language>::RunSimulation(
       if (params.eval_selfrep) {
         DeviceMemory<size_t> result(num_programs);
         RUN(num_programs / kNumThreads, kNumThreads, CheckSelfRep<Language>,
-            programs.Get(), seed(epoch), num_programs, result.Get());
+            programs.Get(), seed(epoch), num_programs, result.Get(), false);
         Synchronize();
         result.Read(state.replication_per_prog.data(), num_programs);
       }
