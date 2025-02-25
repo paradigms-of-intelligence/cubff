@@ -278,19 +278,22 @@ void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
 }
 
 template <typename Language>
-size_t Simulation<Language>::EvalSelfrep(std::string program) {
+size_t Simulation<Language>::EvalSelfrep(std::string program, size_t epoch,
+                                         size_t seed) {
   std::vector<uint8_t> parsed = Language::Parse(program);
-  return EvalParsedSelfrep(parsed);
+  return EvalParsedSelfrep(parsed, epoch, seed);
 }
 
 template <typename Language>
-size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t> &parsed) {
+size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t> &parsed,
+                                               size_t epoch, size_t seed) {
   DeviceMemory<uint8_t> mem(kSingleTapeSize);
   uint8_t zero[kSingleTapeSize] = {};
   memcpy(zero, parsed.data(), parsed.size());
   mem.Write(zero, kSingleTapeSize);
   DeviceMemory<size_t> result(1);
-  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), 0, 1, result.Get());
+  size_t epoch_seed = SplitMix64(SplitMix64(seed) ^ SplitMix64(epoch));
+  RUN(1, 1, CheckSelfRep<Language>, mem.Get(), epoch_seed, 1, result.Get());
 
   Synchronize();
   std::vector<size_t> res(1);
