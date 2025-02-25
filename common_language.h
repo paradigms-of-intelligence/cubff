@@ -204,12 +204,12 @@ template <typename Language>
 __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
                              size_t num_programs, size_t *result, bool debug) {
   size_t index = GetIndex();
-  constexpr size_t num_iters = 13;
-  constexpr size_t num_gen = 2;
-  uint8_t tapes[num_iters][2 * kSingleTapeSize] = {};
+  constexpr size_t kNumIters = 13;
+  constexpr size_t kNumExtraGens = 2;
+  uint8_t tapes[kNumIters][2 * kSingleTapeSize] = {};
   if (index > num_programs) return;
   uint64_t local_seed = SplitMix64(num_programs * seed + index);
-  for (size_t i = 0; i < num_iters; i++) {
+  for (size_t i = 0; i < kNumIters; i++) {
     bool eval_debug = false;
     uint8_t *tape = &tapes[i][0];
     for (int j = 0; j < kSingleTapeSize; j++) {
@@ -233,7 +233,7 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
                              separators, 1);
     }
 
-    for (size_t g = 0; g < num_gen; g++) {
+    for (size_t g = 0; g < kNumExtraGens; g++) {
       for (int j = 0; j < kSingleTapeSize; j++) {
         tape[j] = tape[j + kSingleTapeSize];
         tape[j + kSingleTapeSize] =
@@ -258,12 +258,12 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
   }
   size_t res[2] = {};
   for (int i = 0; i < 2 * kSingleTapeSize; ++i) {
-    for (size_t a = 0; a < num_iters; a++) {
+    for (size_t a = 0; a < kNumIters; a++) {
       size_t count = 1;
-      for (size_t b = a + 1; b < num_iters; b++) {
+      for (size_t b = a + 1; b < kNumIters; b++) {
         if (tapes[a][i] == tapes[b][i]) count++;
       }
-      if (count > num_iters / 4) {
+      if (count > kNumIters / 4) {
         res[i / kSingleTapeSize]++;
         break;
       }
