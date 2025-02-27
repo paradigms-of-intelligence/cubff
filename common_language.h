@@ -205,19 +205,22 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
                              size_t num_programs, size_t *result, bool debug) {
   size_t index = GetIndex();
   constexpr size_t kNumIters = 13;
-  constexpr size_t kNumExtraGens = 2;
+  constexpr size_t kNumExtraGens = 4;
   uint8_t tapes[kNumIters][2 * kSingleTapeSize] = {};
   if (index > num_programs) return;
   uint64_t local_seed = SplitMix64(num_programs * seed + index);
   for (size_t i = 0; i < kNumIters; i++) {
     bool eval_debug = false;
+    uint8_t noise[kSingleTapeSize];
+    for (int j = 0; j < kSingleTapeSize; j++) {
+      noise[j] =
+          SplitMix64(local_seed ^ SplitMix64((i + 1) * kSingleTapeSize + j)) %
+          256;
+    }
     uint8_t *tape = &tapes[i][0];
     for (int j = 0; j < kSingleTapeSize; j++) {
       tape[j] = programs[index * kSingleTapeSize + j];
-      tape[j + kSingleTapeSize] =
-          SplitMix64(local_seed ^
-                     SplitMix64((i + 1) * 2 * kSingleTapeSize + j)) %
-          256;
+      tape[j + kSingleTapeSize] = noise[j];
     }
     if (debug) {
       size_t separators[1] = {kSingleTapeSize};
@@ -236,10 +239,7 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
     for (size_t g = 0; g < kNumExtraGens; g++) {
       for (int j = 0; j < kSingleTapeSize; j++) {
         tape[j] = tape[j + kSingleTapeSize];
-        tape[j + kSingleTapeSize] =
-            SplitMix64(local_seed ^
-                       SplitMix64(((i + 1) * 2 + 1) * kSingleTapeSize + j)) %
-            256;
+        tape[j + kSingleTapeSize] = noise[j];
       }
       if (debug) {
         size_t separators[1] = {kSingleTapeSize};
@@ -260,6 +260,10 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
   for (int i = 0; i < 2 * kSingleTapeSize; ++i) {
     for (size_t a = 0; a < kNumIters; a++) {
       size_t count = 1;
+      if (i < kSingleTapeSize &&
+          tapes[a][i] != programs[index * kSingleTapeSize + i]) {
+        continue;
+      }
       for (size_t b = a + 1; b < kNumIters; b++) {
         if (tapes[a][i] == tapes[b][i]) count++;
       }
