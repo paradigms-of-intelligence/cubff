@@ -84,7 +84,8 @@ PYBIND11_MODULE(cubff, m) {
       .def("RunSingleProgram", &LanguageInterface::RunSingleProgram)
       .def("RunSingleParsedProgram", &LanguageInterface::RunSingleParsedProgram)
       .def("EvalSelfrep", &LanguageInterface::EvalSelfrep)
-      .def("EvalParsedSelfrep", &LanguageInterface::EvalParsedSelfrep);
+      .def("EvalParsedSelfrep", &LanguageInterface::EvalParsedSelfrep)
+      .def("Parse", &LanguageInterface::Parse);
 
   m.def("GetLanguage", &GetLanguage, py::return_value_policy::reference);
   m.def("ResetColors", []() {
