@@ -310,6 +310,12 @@ void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
 }
 
 template <typename Language>
+std::vector<uint8_t> Simulation<Language>::Parse(const std::string& program) {
+  return Language::Parse(program);
+}
+
+
+template <typename Language>
 size_t Simulation<Language>::EvalSelfrep(std::string program, size_t epoch,
                                          size_t seed, bool debug) {
   std::vector<uint8_t> parsed = Language::Parse(program);
