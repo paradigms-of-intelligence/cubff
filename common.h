@@ -107,6 +107,7 @@ struct LanguageInterface {
                              bool debug) = 0;
   virtual size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed, size_t epoch,
                                    size_t seed, bool debug) = 0;
+  virtual std::vector<uint8_t> Parse(const std::string& program) = 0;
 };
 
 template <typename Language>
@@ -126,6 +127,7 @@ struct Simulation : public LanguageInterface {
                      bool debug) override;
   size_t EvalParsedSelfrep(std::vector<uint8_t> &parsed, size_t epoch,
                            size_t seed, bool debug) override;
+  std::vector<uint8_t> Parse(const std::string& program) override;
 };
 
 void RegisterLanguage(const char *lang,
