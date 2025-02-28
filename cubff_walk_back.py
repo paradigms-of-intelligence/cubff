@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from bin import cubff
 import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.dirname(__file__)) + "/bin/")
+import cubff
+
+from python import selfrep_spawning
 
 
 STATES_TO_KEEP = 128
@@ -44,7 +49,7 @@ params = cubff.SimulationParams()
 params.num_programs = 131072
 params.callback_interval = 1
 params.eval_selfrep = True
-params.seed = 0
+params.seed = int(sys.argv[1])
 
 if len(sys.argv) > 1:
     params.seed = int(sys.argv[1])
@@ -65,11 +70,11 @@ Commands:
 
 print(command_string)
 
-cur_epoch = len(states)-1  # index in `states`.
+cur_epoch = len(states) - 1  # index in `states`.
 
 
 def get_prog(epoch, idx):
-    return states[epoch - 1].soup[idx * 64:(idx+1)*64]
+    return states[epoch - 1].soup[idx * 64 : (idx + 1) * 64]
 
 
 program = get_prog(len(states), cur_index)
@@ -81,13 +86,23 @@ while cur_epoch > 1:
         index += 1
     if index % 2 == 0:
         left = cur_index
-        right = states[cur_epoch].shuffle_idx[index+1]
+        right = states[cur_epoch].shuffle_idx[index + 1]
     else:
         right = cur_index
-        left = states[cur_epoch].shuffle_idx[index-1]
+        left = states[cur_epoch].shuffle_idx[index - 1]
+
+    left_score = selfrep_spawning.selfrep_spawn_rate(
+        language, bytes(get_prog(cur_epoch, left))
+    )
+    right_score = selfrep_spawning.selfrep_spawn_rate(
+        language, bytes(get_prog(cur_epoch, right))
+    )
 
     real_epoch = states[cur_epoch].epoch
-    print(f"left: {left:5} right: {right:5} epoch: {real_epoch:5}", )
+    print(
+        f"left: {left:5} right: {right:5} epoch: {real_epoch:5}",
+    )
+    print(f"left score: {left_score} right score: {right_score}")
 
     program_bytes = (bytes(get_prog(cur_epoch, left)) +
                      bytes(get_prog(cur_epoch, right)))
