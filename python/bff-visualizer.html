@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BFF Program Trace Visualizer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #61afef;
+        }
+
+        .subtitle {
+            color: #98c379;
+            margin-top: 5px;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 1200px;
+            background-color: #252526;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #visualizer-container {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        #file-upload {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            border: 2px dashed #3a3a3a;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        #file-upload:hover {
+            border-color: #61afef;
+        }
+
+        #file-upload-text {
+            text-align: center;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .upload-button {
+            background-color: #61afef;
+            color: #1e1e1e;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .upload-button:hover {
+            background-color: #42a5f5;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        #step-slider {
+            flex-grow: 1;
+            margin: 0 15px;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #3a3a3a;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        #step-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #61afef;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #step-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #61afef;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #current-step {
+            font-family: 'Consolas', monospace;
+            width: 60px;
+            text-align: center;
+        }
+
+        #total-steps {
+            font-family: 'Consolas', monospace;
+            width: 60px;
+            text-align: center;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-button {
+            background-color: #2c2c2c;
+            color: #d4d4d4;
+            border: 1px solid #3a3a3a;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .control-button:hover {
+            background-color: #3a3a3a;
+        }
+
+        .control-button:active {
+            transform: translateY(1px);
+        }
+
+        .control-button.primary {
+            background-color: #3c5a72;
+            color: #ffffff;
+        }
+
+        .control-button.primary:hover {
+            background-color: #61afef;
+        }
+
+        #program-display {
+            width: 100%;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre;
+            overflow-x: auto;
+            padding: 15px;
+            background-color: #000000;
+            border-radius: 4px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            min-height: 250px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .program-line {
+            display: block;
+            padding: 4px 0;
+        }
+
+        .program-line.current {
+            background-color: rgba(152, 195, 121, 0.2);
+            border-radius: 2px;
+        }
+
+        .program-line.dimmed {
+            opacity: 0.6;
+        }
+
+        .program-line-number {
+            display: inline-block;
+            width: 60px;
+            color: #6a6a6a;
+            user-select: none;
+        }
+
+        .status-bar {
+            margin-top: 5px;
+            margin-bottom: 5px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            color: #98c379;
+        }
+
+        #legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+        
+        .info-panel {
+            margin-top: 15px;
+            border-top: 1px solid #3a3a3a;
+            padding-top: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        /* Settings panel */
+        .settings-panel {
+            padding: 10px;
+            background-color: #2c2c2c;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .settings-panel label {
+            margin-right: 10px;
+        }
+        
+        .playback-controls, .context-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Hidden elements when no file is loaded */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Character coloring - ENHANCED */
+        .fg-red { color: #ff5b66; }
+        .fg-white { color: #ffffff; }
+        .fg-gray { color: #6a6a6a; }
+        
+        .bg-green { background-color: #00ff8c; }
+        .bg-blue { background-color: #00a8ff; }
+        .bg-red { background-color: #ff3c50; }
+        .bg-black { background-color: transparent; }
+
+        /* Additional style for keyboard shortcuts info */
+        .keyboard-shortcuts {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #98c379;
+        }
+
+        .keyboard-shortcuts code {
+            background-color: #2c2c2c;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin: 0 3px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>BFF Program Trace Visualizer</h1>
+        <div class="subtitle">Navigate through BFF program execution states</div>
+    </header>
+
+    <div id="container">
+        <div id="file-upload">
+            <div id="file-upload-text">
+                <p>Drop a BFF trace file here or</p>
+                <button class="upload-button" onclick="document.getElementById('file-input').click()">Select File</button>
+                <input type="file" id="file-input" accept="*" onchange="handleFileSelect(event)">
+            </div>
+        </div>
+
+        <div id="visualizer-container" class="hidden">
+            <div class="controls">
+                <div class="slider-container">
+                    <span id="current-step">0</span>
+                    <input type="range" id="step-slider" min="0" value="0" step="1">
+                    <span id="total-steps">0</span>
+                </div>
+                <div class="button-container">
+                    <button class="control-button" id="step-first">⏮ First</button>
+                    <button class="control-button" id="step-back-10">⏪ -10</button>
+                    <button class="control-button" id="step-back">◀ Prev</button>
+                    <button class="control-button primary" id="step-play">▶ Play</button>
+                    <button class="control-button" id="step-next">Next ▶</button>
+                    <button class="control-button" id="step-forward-10">+10 ⏩</button>
+                    <button class="control-button" id="step-last">Last ⏭</button>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                PC: <span id="pc-value">0</span> | 
+                Head0: <span id="head0-value">0</span> | 
+                Head1: <span id="head1-value">0</span>
+            </div>
+
+            <div id="program-display"></div>
+            
+            <div class="info-panel">
+                <div class="settings-panel">
+                    <div class="playback-controls">
+                        <label for="playback-speed-slider">Playback Speed:</label>
+                        <input type="range" id="playback-speed-slider" min="0" max="8" value="0" step="1" style="width: 100px;">
+                        <span id="playback-speed-display">1x</span>
+                    </div>
+                    
+                    <div class="context-controls">
+                        <label for="context-lines">Context lines:</label>
+                        <input type="number" id="context-lines" min="1" max="10" value="3" style="width: 50px;">
+                        <button class="control-button" id="apply-settings">Apply</button>
+                    </div>
+                </div>
+                
+                <div id="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #00a8ff;"></div>
+                        <span>Head0</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff3c50;"></div>
+                        <span>Head1</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #00ff8c;"></div>
+                        <span>PC</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: white;"></div>
+                        <span>Commands</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #6a6a6a;"></div>
+                        <span>Data</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff5b66;"></div>
+                        <span>Null byte (0)</span>
+                    </div>
+                </div>
+                
+                <div class="keyboard-shortcuts">
+                    Keyboard shortcuts: 
+                    <code>Space</code> Play/Pause,
+                    <code>←/→</code> Previous/Next,
+                    <code>Shift+←/→</code> -10/+10 steps,
+                    <code>S</code> Change speed
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // BFF constants and utilities
+        const SINGLE_TAPE_SIZE = 64;
+        const TOTAL_TAPE_SIZE = 2 * SINGLE_TAPE_SIZE;
+
+        // BFF operation types
+        const BffOp = {
+            LOOP_START: 0,
+            LOOP_END: 1,
+            PLUS: 2,
+            MINUS: 3,
+            COPY01: 4,
+            COPY10: 5,
+            DEC0: 6,
+            INC0: 7,
+            DEC1: 8,
+            INC1: 9,
+            NULL: 10,
+            NOOP: 11
+        };
+
+        // Command representation
+        const commandRepr = "[]+-.,<>{}";
+
+        // Map from byte value to operation type
+        function getOpKind(c) {
+            if (c === 91) return BffOp.LOOP_START;       // [
+            else if (c === 93) return BffOp.LOOP_END;    // ]
+            else if (c === 43) return BffOp.PLUS;        // +
+            else if (c === 45) return BffOp.MINUS;       // -
+            else if (c === 46) return BffOp.COPY01;      // .
+            else if (c === 44) return BffOp.COPY10;      // ,
+            else if (c === 60) return BffOp.DEC0;        // <
+            else if (c === 62) return BffOp.INC0;        // >
+            else if (c === 123) return BffOp.DEC1;       // {
+            else if (c === 125) return BffOp.INC1;       // }
+            else if (c === 0) return BffOp.NULL;         // 0
+            else return BffOp.NOOP;                      // Any other character
+        }
+
+        // Character representation mapping (from Python character_repr function)
+        function characterRepr() {
+            // Create array of 256 Unicode strings
+            const data = [];
+            
+            // Initialize all values with their default Unicode mappings (0x100 + i)
+            for (let i = 0; i < 256; i++) {
+                data.push(String.fromCodePoint(0x100 + i));
+            }
+            
+            // Special letter mappings (A through I)
+            const upperLetters = "ABCDEFGHI";
+            for (let i = 0; i < upperLetters.length; i++) {
+                data[0xC8 + i] = upperLetters[i];
+            }
+            
+            // Special letter mappings (J, K, L)
+            const jkl = "JKL";
+            for (let i = 0; i < jkl.length; i++) {
+                data[0xF1 + i] = jkl[i];
+            }
+            
+            return data;
+        }
+
+        // Create the character mapping once
+        const charMap = characterRepr();
+
+        // Map a byte to its string representation
+        function mapChar(c) {
+            // Replicate the map_char function from Python
+            const kind = getOpKind(c);
+            if (kind < BffOp.NULL) {  // Is command
+                return commandRepr[kind];
+            } else if (kind === BffOp.NULL) {  // NULL
+                return "0";
+            } else {
+                return charMap[c];
+            }
+        }
+
+        // Get foreground color based on operation kind (following the Python implementation)
+        function getForegroundColor(kind) {
+            if (kind === BffOp.NULL) {
+                return "fg-red";
+            } else if (kind < BffOp.NULL) { // Is command
+                return "fg-white";
+            } else {
+                return "fg-gray";
+            }
+        }
+
+        // Get background color based on position (following the Python implementation)
+        function getBackgroundColor(index, head0Pos, head1Pos, pcPos) {
+            if (index === pcPos) {
+                return "bg-green";
+            } else if (index === head0Pos) {
+                return "bg-blue";
+            } else if (index === head1Pos) {
+                return "bg-red";
+            } else {
+                return "bg-black";
+            }
+        }
+
+        // Print program function that mirrors the Python print_program function
+        function printProgram(head0Pos, head1Pos, pcPos, mem, separators = []) {
+            let output = '';
+            let sepId = 0;
+            
+            for (let i = 0; i < mem.length; i++) {
+                if (sepId < separators.length && separators[sepId] === i) {
+                    output += '   ';
+                    sepId++;
+                }
+                
+                const c = mem[i];
+                const kind = getOpKind(c);
+                
+                // Set colors based on character type and position
+                const fgColorClass = getForegroundColor(kind);
+                const bgColorClass = getBackgroundColor(i, head0Pos, head1Pos, pcPos);
+                
+                // Add the character with appropriate styling
+                output += `<span class="${fgColorClass} ${bgColorClass}">${mapChar(c)}</span>`;
+            }
+            
+            return output;
+        }
+
+        // Read BFF state file
+        function readBffStateFile(buffer) {
+            const view = new DataView(buffer);
+            let offset = 0;
+            
+            // Read magic number (4 bytes)
+            const magic = String.fromCharCode(
+                view.getUint8(offset),
+                view.getUint8(offset + 1),
+                view.getUint8(offset + 2),
+                view.getUint8(offset + 3)
+            );
+            offset += 4;
+            
+            if (magic !== 'BFF\0') {
+                throw new Error('Invalid file format: Not a BFF state file');
+            }
+            
+            // Read format version (4 bytes)
+            const version = view.getUint32(offset, true); // true for little-endian
+            offset += 4;
+            
+            if (version !== 1) {
+                throw new Error(`Unsupported format version: ${version}`);
+            }
+            
+            // Read tape size (4 bytes)
+            const tapeSize = view.getUint32(offset, true);
+            offset += 4;
+            
+            // Calculate state size
+            const stateSize = 4 + 4 + 4 + tapeSize; // PC + head0 + head1 + tape
+            
+            // Calculate number of states
+            const stateCount = Math.floor((buffer.byteLength - offset) / stateSize);
+            
+            // Parse states
+            const states = [];
+            for (let i = 0; i < stateCount; i++) {
+                const state = {
+                    pc: view.getUint32(offset, true),
+                    head0: view.getUint32(offset + 4, true),
+                    head1: view.getUint32(offset + 8, true),
+                    tape: new Uint8Array(buffer.slice(offset + 12, offset + 12 + tapeSize))
+                };
+                states.push(state);
+                offset += stateSize;
+            }
+            
+            return {
+                magic,
+                version,
+                tapeSize,
+                states
+            };
+        }
+
+        // Global variables
+        let traceData = null;
+        let currentStateIndex = 0;
+        let isPlaying = false;
+        let playbackSpeed = 1;
+        let playTimer = null;
+        let contextLinesCount = 3; // Default number of context lines
+        
+        // Logarithmic speed values
+        const speedValues = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+
+        // UI elements
+        const visualizerContainer = document.getElementById('visualizer-container');
+        const fileUpload = document.getElementById('file-upload');
+        const stepSlider = document.getElementById('step-slider');
+        const currentStepElement = document.getElementById('current-step');
+        const totalStepsElement = document.getElementById('total-steps');
+        const playButton = document.getElementById('step-play');
+        const pcValueElement = document.getElementById('pc-value');
+        const head0ValueElement = document.getElementById('head0-value');
+        const head1ValueElement = document.getElementById('head1-value');
+        const playbackSpeedDisplay = document.getElementById('playback-speed-display');
+        const playbackSpeedSlider = document.getElementById('playback-speed-slider');
+        const programDisplay = document.getElementById('program-display');
+        const contextLinesInput = document.getElementById('context-lines');
+        const applySettingsButton = document.getElementById('apply-settings');
+
+        // Event handlers
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                loadFile(file);
+            }
+        }
+
+        function loadFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const buffer = e.target.result;
+                    traceData = readBffStateFile(buffer);
+                    
+                    // Initialize the UI
+                    stepSlider.max = traceData.states.length - 1;
+                    totalStepsElement.textContent = traceData.states.length - 1;
+                    
+                    // Show the visualizer
+                    fileUpload.style.display = 'none';
+                    visualizerContainer.classList.remove('hidden');
+                    
+                    // Set to first state
+                    currentStateIndex = 0;
+                    
+                    // Initialize playback controls
+                    playbackSpeed = speedValues[0]; // Start at 1x
+                    playbackSpeedSlider.value = 0;
+                    playbackSpeedDisplay.textContent = `${playbackSpeed}x`;
+                    
+                    updateUI();
+                    
+                } catch (error) {
+                    alert(`Error loading file: ${error.message}`);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Setup drag and drop
+        fileUpload.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileUpload.style.borderColor = '#61afef';
+        });
+
+        fileUpload.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileUpload.style.borderColor = '#3a3a3a';
+        });
+
+        fileUpload.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            fileUpload.style.borderColor = '#3a3a3a';
+            if (e.dataTransfer.files.length > 0) {
+                loadFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Step navigation handlers
+        stepSlider.addEventListener('input', function() {
+            currentStateIndex = parseInt(this.value);
+            updateUI();
+        });
+
+        document.getElementById('step-first').addEventListener('click', function() {
+            currentStateIndex = 0;
+            updateUI();
+        });
+
+        document.getElementById('step-last').addEventListener('click', function() {
+            currentStateIndex = traceData.states.length - 1;
+            updateUI();
+        });
+
+        document.getElementById('step-next').addEventListener('click', function() {
+            if (currentStateIndex < traceData.states.length - 1) {
+                currentStateIndex++;
+                updateUI();
+            }
+        });
+
+        document.getElementById('step-back').addEventListener('click', function() {
+            if (currentStateIndex > 0) {
+                currentStateIndex--;
+                updateUI();
+            }
+        });
+
+        document.getElementById('step-forward-10').addEventListener('click', function() {
+            currentStateIndex = Math.min(currentStateIndex + 10, traceData.states.length - 1);
+            updateUI();
+        });
+
+        document.getElementById('step-back-10').addEventListener('click', function() {
+            currentStateIndex = Math.max(currentStateIndex - 10, 0);
+            updateUI();
+        });
+
+        playButton.addEventListener('click', function() {
+            togglePlayback();
+        });
+
+        // Settings panel
+        applySettingsButton.addEventListener('click', function() {
+            contextLinesCount = parseInt(contextLinesInput.value);
+            updateUI();
+        });
+
+        // Control playback
+        function togglePlayback() {
+            isPlaying = !isPlaying;
+            
+            if (isPlaying) {
+                playButton.innerHTML = '⏸ Pause';
+                playTimer = setInterval(playStep, 1000 / (playbackSpeed * 2));
+            } else {
+                playButton.innerHTML = '▶ Play';
+                if (playTimer) {
+                    clearInterval(playTimer);
+                    playTimer = null;
+                }
+            }
+        }
+
+        // Setup playback speed slider
+        playbackSpeedSlider.addEventListener('input', function() {
+            const speedIndex = parseInt(this.value);
+            playbackSpeed = speedValues[speedIndex];
+            playbackSpeedDisplay.textContent = `${playbackSpeed}x`;
+            
+            if (isPlaying && playTimer) {
+                clearInterval(playTimer);
+                playTimer = setInterval(playStep, 1000 / playbackSpeed);
+            }
+        });
+        
+        // Keyboard shortcuts - improved to prevent double-triggering
+        // Remove any existing event listeners first
+        const keydownHandler = function(event) {
+            // Only process if trace data is loaded
+            if (!traceData) return;
+            
+            if (event.key === ' ') { // Spacebar
+                event.preventDefault();
+                togglePlayback();
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault(); // Prevent default scrolling behavior
+                if (event.shiftKey) {
+                    // Explicitly calculate the new index to avoid any rounding issues
+                    const newIndex = currentStateIndex + 10;
+                    currentStateIndex = Math.min(newIndex, traceData.states.length - 1);
+                } else {
+                    if (currentStateIndex < traceData.states.length - 1) {
+                        currentStateIndex = currentStateIndex + 1; // Explicitly add 1
+                    }
+                }
+                updateUI();
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault(); // Prevent default scrolling behavior
+                if (event.shiftKey) {
+                    // Explicitly calculate the new index to avoid any rounding issues
+                    const newIndex = currentStateIndex - 10;
+                    currentStateIndex = Math.max(newIndex, 0);
+                } else {
+                    if (currentStateIndex > 0) {
+                        currentStateIndex = currentStateIndex - 1; // Explicitly subtract 1
+                    }
+                }
+                updateUI();
+            } else if (event.key === 's') {
+                event.preventDefault();
+                // Change playback speed
+                const speedIndex = (playbackSpeedSlider.value * 1) + 1;
+                playbackSpeedSlider.value = speedIndex % 9;
+                playbackSpeed = speedValues[playbackSpeedSlider.value];
+                playbackSpeedDisplay.textContent = `${playbackSpeed}x`;
+                
+                if (isPlaying && playTimer) {
+                    clearInterval(playTimer);
+                    playTimer = setInterval(playStep, 1000 / playbackSpeed);
+                }
+            }
+        };
+        
+        // Clean way to ensure only one event listener exists
+        document.removeEventListener('keydown', keydownHandler);
+        document.addEventListener('keydown', keydownHandler);
+
+        function playStep() {
+            if (currentStateIndex < traceData.states.length - 1) {
+                currentStateIndex++;
+                updateUI();
+            } else {
+                // End of trace, stop playback
+                isPlaying = false;
+                playButton.innerHTML = '▶ Play';
+                clearInterval(playTimer);
+                playTimer = null;
+            }
+        }
+
+        function updateUI() {
+            if (!traceData) return;
+            
+            const state = traceData.states[currentStateIndex];
+            
+            // Update slider and counter
+            stepSlider.value = currentStateIndex;
+            currentStepElement.textContent = currentStateIndex;
+            
+            // Update status bar
+            pcValueElement.textContent = state.pc;
+            head0ValueElement.textContent = state.head0;
+            head1ValueElement.textContent = state.head1;
+            
+            // Update program display with multiple lines (current + context)
+            updateProgramDisplay();
+        }
+        
+        function updateProgramDisplay() {
+            if (!traceData) return;
+            
+            let html = '';
+            
+            // Always show the same number of lines total
+            const totalLinesToShow = contextLinesCount * 2 + 1; // Lines above + current + lines below
+            
+            // Always keep the current line at the same position (after contextLinesCount blank/real lines)
+            const linesToShowAbove = contextLinesCount;
+            const linesToShowBelow = contextLinesCount;
+            
+            // Add blank padding lines above when near the beginning
+            const blankLinesAbove = Math.max(0, linesToShowAbove - currentStateIndex);
+            for (let i = 0; i < blankLinesAbove; i++) {
+                html += `<div class="program-line dimmed">`;
+                html += `<span class="program-line-number">-</span>`;
+                html += `</div>`;
+            }
+            
+            // Calculate real lines to show above current
+            const startRealLine = Math.max(0, currentStateIndex - linesToShowAbove);
+            
+            // Generate HTML for lines above current
+            for (let i = startRealLine; i < currentStateIndex; i++) {
+                const state = traceData.states[i];
+                html += `<div class="program-line dimmed">`;
+                html += `<span class="program-line-number">${i}:</span>`;
+                html += printProgram(state.head0, state.head1, state.pc, state.tape);
+                html += '</div>';
+            }
+            
+            // Generate HTML for current line
+            const currentState = traceData.states[currentStateIndex];
+            html += `<div class="program-line current">`;
+            html += `<span class="program-line-number">${currentStateIndex}:</span>`;
+            html += printProgram(currentState.head0, currentState.head1, currentState.pc, currentState.tape);
+            html += '</div>';
+            
+            // Calculate real lines to show below current
+            const endRealLine = Math.min(traceData.states.length - 1, currentStateIndex + linesToShowBelow);
+            
+            // Generate HTML for lines below current
+            for (let i = currentStateIndex + 1; i <= endRealLine; i++) {
+                const state = traceData.states[i];
+                html += `<div class="program-line dimmed">`;
+                html += `<span class="program-line-number">${i}:</span>`;
+                html += printProgram(state.head0, state.head1, state.pc, state.tape);
+                html += '</div>';
+            }
+            
+            // Add blank padding lines below when near the end
+            const blankLinesBelow = Math.max(0, linesToShowBelow - (traceData.states.length - 1 - currentStateIndex));
+            for (let i = 0; i < blankLinesBelow; i++) {
+                html += `<div class="program-line dimmed">`;
+                html += `<span class="program-line-number">-</span>`;
+                html += `</div>`;
+            }
+            
+            programDisplay.innerHTML = html;
+        }
+
+        // Get description of current operation
+        function getOperationDescription(kind) {
+            switch (kind) {
+                case BffOp.LOOP_START: return "Loop start - If value at head0 is 0, jump past matching ]";
+                case BffOp.LOOP_END: return "Loop end - If value at head0 is not 0, jump back to matching [";
+                case BffOp.PLUS: return "Increment value at head0";
+                case BffOp.MINUS: return "Decrement value at head0";
+                case BffOp.COPY01: return "Copy from head0 to head1";
+                case BffOp.COPY10: return "Copy from head1 to head0";
+                case BffOp.DEC0: return "Decrement head0 pointer";
+                case BffOp.INC0: return "Increment head0 pointer";
+                case BffOp.DEC1: return "Decrement head1 pointer";
+                case BffOp.INC1: return "Increment head1 pointer";
+                case BffOp.NULL: return "Null byte";
+                case BffOp.NOOP: return "No operation";
+                default: return "Unknown operation";
+            }
+        }
+    </script>
+</body>
+</html>
