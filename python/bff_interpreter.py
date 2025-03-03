@@ -79,44 +79,44 @@ def command_repr() -> str:
 
 def character_repr() -> List[str]:
     """Create a mapping of byte values to their string representations.
-    
+
     This replicates the static array of 256 Unicode strings from the C++ code.
     """
     # Initialize all values with their default Unicode mappings
     data = [chr(0x100 + i) for i in range(256)]
-    
+
     # Special letter mappings (A through I)
     for i, char in enumerate("ABCDEFGHI"):
         data[0xC8 + i] = char
-        
+
     # Special letter mappings (J, K, L)
     for i, char in enumerate("JKL"):
         data[0xF1 + i] = char
-        
+
     return data
 
 
 def parse(bff_str: str) -> bytearray:
     """Parse a BFF program string into a bytearray of instructions.
-    
+
     The resulting program must be exactly 2 * SINGLE_TAPE_SIZE bytes long.
     """
     ret = bytearray()
-    
+
     # Create mapping from op kinds to their byte values
     command_bytes = [0] * BffOp.NOOP.value
     for i in range(256):
         kind = get_op_kind(i)
         if kind.value < BffOp.NOOP.value:
             command_bytes[kind.value] = i
-    
+
     i = 0
     while i < len(bff_str):
         if bff_str[i] == '0':
             ret.append(command_bytes[BffOp.NULL.value])
             i += 1
             continue
-            
+
         found = False
         # Check if the character is a command
         for j in range(10):  # There are 10 command characters
@@ -125,10 +125,10 @@ def parse(bff_str: str) -> bytearray:
                 i += 1
                 found = True
                 break
-                
+
         if found:
             continue
-            
+
         # Check if it's a character representation
         char_repr = character_repr()
         for j in range(256):
@@ -138,15 +138,15 @@ def parse(bff_str: str) -> bytearray:
                 i += len(s)
                 found = True
                 break
-                
+
         if not found:
             print(f"Invalid BFF program, character {i} not recognized: {bff_str}")
             break
-    
+
     # Enforce the tape size requirement
     if len(ret) != 2 * SINGLE_TAPE_SIZE:
         raise ValueError(f"Program must be exactly {2 * SINGLE_TAPE_SIZE} bytes long, but got {len(ret)} bytes")
-            
+
     return ret
 
 
@@ -189,28 +189,28 @@ def print_program(head0_pos: int, head1_pos: int, pc_pos: int,
     """Print the program with highlighting for the current positions."""
     if separators is None:
         separators = []
-        
+
     sep_id = 0
     for i in range(len(mem)):
         if sep_id < len(separators) and separators[sep_id] == i:
             print("   ", end="")
             sep_id += 1
-            
+
         c = mem[i]
         kind = get_op_kind(c)
-        
+
         # Set colors based on character type and position
         fg_color = get_foreground_color(kind)
         bg_color = get_background_color(i, head0_pos, head1_pos, pc_pos)
-        
+
         print(f"{fg_color}{bg_color}{map_char(c)}{Style.RESET_ALL}", end="")
-        
+
     print()
 
-    
+
 def initial_state(tape: bytearray) -> Tuple[int, int, int]:
     """Set up the initial state with head positions and program counter.
-    
+
     The initial state reads the first two bytes of the tape to determine
     the starting positions of the two heads, and sets the program counter
     to begin at position 2.
@@ -223,14 +223,14 @@ def initial_state(tape: bytearray) -> Tuple[int, int, int]:
 
 def evaluate_one(tape: bytearray, head0: int, head1: int, pc: int) -> Tuple[int, int, int, bool]:
     """Evaluate a single instruction and update state.
-    
+
     Returns:
         Tuple of (head0, head1, pc, is_command) where is_command indicates if
         the operation was a valid command or just a comment/noop.
     """
     cmd = tape[pc]
     kind = get_op_kind(cmd)
-    
+
     if kind == BffOp.DEC0:
         head0 -= 1
     elif kind == BffOp.INC0:
@@ -275,57 +275,57 @@ def evaluate_one(tape: bytearray, head0: int, head1: int, pc: int) -> Tuple[int,
                 pc = -1  # Terminate execution
     else:
         return head0, head1, pc, False
-        
+
     return head0, head1, pc, True
 
 
 def evaluate(tape: bytearray, stepcount: int, debug: bool = False) -> int:
     """Evaluate the BFF program for a given number of steps.
-    
+
     Args:
         tape: The program/memory tape
         stepcount: Maximum number of steps to execute
         debug: Whether to print debug information
-        
+
     Returns:
         Number of actual steps executed (excluding noops)
     """
     # Verify tape size is exactly 2 * SINGLE_TAPE_SIZE
     if len(tape) != 2 * SINGLE_TAPE_SIZE:
         raise ValueError(f"Program must be exactly {2 * SINGLE_TAPE_SIZE} bytes long")
-    
+
     nskip = 0
-    
+
     head0_pos, head1_pos, pos = initial_state(tape)
-    
+
     i = 0
     for i in range(stepcount):
         # Ensure head positions wrap around
         head0_pos = head0_pos & (2 * SINGLE_TAPE_SIZE - 1)
         head1_pos = head1_pos & (2 * SINGLE_TAPE_SIZE - 1)
-        
+
         if debug:
             print_program(head0_pos, head1_pos, pos, tape)
-            
+
         head0_pos, head1_pos, pos, is_command = evaluate_one(tape, head0_pos, head1_pos, pos)
-        
+
         if not is_command:
             nskip += 1
-            
+
         if pos < 0:
             i += 1
             break
-            
+
         pos += 1
         if pos >= 2 * SINGLE_TAPE_SIZE:
             i += 1
             break
-            
+
     return i - nskip
 
 def evaluate_and_save(tape: bytearray, file_path: str, stepcount: int, debug: bool = False) -> int:
     """Evaluate the BFF program for a given number of steps and save each state to a file.
-    
+
     The file format is a simple binary format:
     - 4-byte magic number ('BFF\0')
     - 4-byte format version (1)
@@ -335,86 +335,86 @@ def evaluate_and_save(tape: bytearray, file_path: str, stepcount: int, debug: bo
       - 4-byte head0 position
       - 4-byte head1 position
       - Tape contents (128 bytes)
-    
+
     Args:
         tape: The program/memory tape
         file_path: Path to save the state history
         stepcount: Maximum number of steps to execute
         debug: Whether to print debug information
-        
+
     Returns:
         Number of actual steps executed (excluding noops)
-    """    
+    """
     # Verify tape size is exactly 2 * SINGLE_TAPE_SIZE
     if len(tape) != 2 * SINGLE_TAPE_SIZE:
         raise ValueError(f"Program must be exactly {2 * SINGLE_TAPE_SIZE} bytes long")
-    
+
     # Copy the initial tape to avoid modifying the original
     working_tape = bytearray(tape)
-    
+
     nskip = 0
     head0_pos, head1_pos, pos = initial_state(working_tape)
-    
+
     # Open the file for writing in binary mode
     with open(file_path, 'wb') as f:
         # Write header
         f.write(b'BFF\0')  # Magic number
         f.write(struct.pack('<I', 1))  # Format version
         f.write(struct.pack('<I', 2 * SINGLE_TAPE_SIZE))  # Tape size
-        
+
         i = 0
         for i in range(stepcount):
             # Ensure head positions wrap around
             head0_pos = head0_pos & (2 * SINGLE_TAPE_SIZE - 1)
             head1_pos = head1_pos & (2 * SINGLE_TAPE_SIZE - 1)
-            
+
             # Save the current state
             f.write(struct.pack('<I', pos))  # Program counter
             f.write(struct.pack('<I', head0_pos))  # Head 0 position
             f.write(struct.pack('<I', head1_pos))  # Head 1 position
             f.write(working_tape)  # Tape contents
-            
+
             if debug:
                 print_program(head0_pos, head1_pos, pos, working_tape)
-                
+
             head0_pos, head1_pos, pos, is_command = evaluate_one(working_tape, head0_pos, head1_pos, pos)
-            
+
             if not is_command:
                 nskip += 1
-                
+
             if pos < 0:
                 i += 1
                 break
-                
+
             pos += 1
             if pos >= 2 * SINGLE_TAPE_SIZE:
                 i += 1
                 break
-    
+
     return i - nskip
 
 def read_and_display_states(file_path: str) -> None:
     """Read a BFF state file and display each state using print_program.
-    
+
     Args:
         file_path: Path to the BFF state file
     """
     import struct
-    
+
     with open(file_path, 'rb') as f:
         # Read header
         magic = f.read(4)
         if magic != b'BFF\0':
             raise ValueError(f"Invalid file format: Expected 'BFF\\0', got {magic}")
-        
+
         version = struct.unpack('<I', f.read(4))[0]
         if version != 1:
             raise ValueError(f"Unsupported format version: {version}")
-        
+
         tape_size = struct.unpack('<I', f.read(4))[0]
         if tape_size != 2 * SINGLE_TAPE_SIZE:
             raise ValueError(f"Unexpected tape size: {tape_size}, expected {2 * SINGLE_TAPE_SIZE}")
-        
+
         # Read states
         state_count = 0
         while True:
@@ -422,26 +422,26 @@ def read_and_display_states(file_path: str) -> None:
             pc_bytes = f.read(4)
             if not pc_bytes or len(pc_bytes) < 4:
                 break  # End of file
-            
+
             pc = struct.unpack('<I', pc_bytes)[0]
             head0 = struct.unpack('<I', f.read(4))[0]
             head1 = struct.unpack('<I', f.read(4))[0]
             tape = bytearray(f.read(tape_size))
-            
+
             if len(tape) < tape_size:
                 print(f"Warning: Incomplete state at position {state_count}")
                 break
-            
+
             # Display the state
             print_program(head0, head1, pc, tape)
             state_count += 1
-    
+
     print(f"\nTotal states read: {state_count}")
 
 
 def test_evaluate_and_save(program: bytearray, steps: int = 100, max_display: int = 10) -> None:
     """Test the evaluate_and_save function by creating a temporary file, saving states, and displaying them.
-    
+
     Args:
         program_str: BFF program string
         steps: Number of steps to execute
@@ -449,24 +449,24 @@ def test_evaluate_and_save(program: bytearray, steps: int = 100, max_display: in
     """
     import tempfile
     import os
-    
+
     # Parse the program
     # program = parse(program_str)
-    
+
     # Create a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix='.bff') as temp_file:
         temp_path = temp_file.name
-    
+
     try:
         # Run and save states
         print(f"Executing {steps} steps and saving to {temp_path}...")
         actual_steps = evaluate_and_save(program, temp_path, steps)
         print(f"Executed {actual_steps} actual steps (excluding noops)")
-        
+
         # Read and display states
         print("\nReading saved states:")
         read_and_display_states(temp_path, max_display)
-    
+
     finally:
         # Clean up temporary file
         if os.path.exists(temp_path):
