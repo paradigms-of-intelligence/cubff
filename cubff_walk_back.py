@@ -24,9 +24,9 @@ cur_index = -1
 
 
 def callback(state):
+    global cur_index, states
     print(f"collecting states: {state.epoch:5}", end="\r")
     sys.stdout.flush()
-    global states
     states.append(state)
     if len(states) > STATES_TO_KEEP:
         states = states[1:]
@@ -34,7 +34,6 @@ def callback(state):
     for i, score in enumerate(state.replication_per_prog):
         if score >= THRESHOLD_SCORE:
             print(i, score)
-            global cur_index
             cur_index = i
             return True
 
@@ -43,9 +42,13 @@ def callback(state):
 
 params = cubff.SimulationParams()
 params.num_programs = 131072
-params.seed = 0
 params.callback_interval = 1
 params.eval_selfrep = True
+params.seed = 0
+
+if len(sys.argv) > 1:
+    params.seed = int(sys.argv[1])
+    print(f"Seed = {params.seed}")
 
 language = cubff.GetLanguage("bff")
 cubff.ResetColors()
@@ -53,8 +56,14 @@ cubff.ResetColors()
 language.RunSimulation(params, None, callback)
 print("states collected")
 
-print("Commands: l/r to go to the previous epoch focusing on the left/right program, a number to run the current program pair for that number of steps (or until termination)")
+command_string = """
+Commands:
+- l/r to go to the previous epoch focusing on the left/right program
+- "a number to run the current program pair for that number of steps (or until termination)
+- s <filename> to save the current program pair to a file
+"""
 
+print(command_string)
 
 cur_epoch = len(states)-1  # index in `states`.
 
@@ -80,8 +89,9 @@ while cur_epoch > 1:
     real_epoch = states[cur_epoch].epoch
     print(f"left: {left:5} right: {right:5} epoch: {real_epoch:5}", )
 
-    program = cubff.VectorUint8(bytes(get_prog(cur_epoch, left)) +
-                                bytes(get_prog(cur_epoch, right)))
+    program_bytes = (bytes(get_prog(cur_epoch, left)) +
+                     bytes(get_prog(cur_epoch, right)))
+    program = cubff.VectorUint8(program_bytes)
 
     language.PrintProgram(128, program, [64])
 
@@ -94,6 +104,14 @@ while cur_epoch > 1:
         elif command.strip() == "r":
             cur_index = right
             cur_epoch -= 1
+        elif command[0] == "s":
+            try:
+                filename = command.split(maxsplit=1)[1]
+                with open(filename, 'wb') as f:
+                    f.write(program_bytes)
+                print(f"Program pair saved to '{filename}'")
+            except Exception as e:
+                print(f"Error: {e}")
         else:
             try:
                 command = int(command.strip())
