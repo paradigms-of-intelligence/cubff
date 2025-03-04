@@ -211,8 +211,7 @@ FLAG(std::string, draw_to_2d, "",
 FLAG(size_t, grid_width_2d, 0, "width of the 2d grid");
 FLAG(bool, disable_output, false, "disable printing to stdout");
 FLAG(std::optional<size_t>, stopping_selfrep_count, std::nullopt,
-     "stop when "
-     "that many programs appear to be self-replicators");
+     "stop when that many programs appear to be self-replicators");
 
 int main(int argc, char **argv) {
   flags::ParseCommandLine(argc, argv);
@@ -339,8 +338,7 @@ int main(int argc, char **argv) {
         fprintf(logfile,
                 "epoch,brotli_size,soup_size,higher_entropy,number_selfreps\n");
       } else {
-        fprintf(logfile,
-                "epoch,brotli_size,soup_size,higher_entropy\n");
+        fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy\n");
       }
     }
 
