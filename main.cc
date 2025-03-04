@@ -210,8 +210,8 @@ FLAG(std::string, draw_to_2d, "",
      "be a square number)");
 FLAG(size_t, grid_width_2d, 0, "width of the 2d grid");
 FLAG(bool, disable_output, false, "disable printing to stdout");
-FLAG(std::optional<size_t>, stopping_selfrep_count, std::nullopt, "stop when "
-    "that many programs appear to be self-replicators");
+FLAG(std::optional<size_t>, stopping_selfrep_count, std::nullopt,
+     "stop when that many programs appear to be self-replicators");
 
 int main(int argc, char **argv) {
   flags::ParseCommandLine(argc, argv);
@@ -303,7 +303,8 @@ int main(int argc, char **argv) {
   uint32_t clear_interval = GetFlag(FLAGS_clear_interval);
   std::optional<size_t> max_epochs = GetFlag(FLAGS_max_epochs);
   std::optional<size_t> stopping_bpb = GetFlag(FLAGS_stopping_bpb);
-  std::optional<size_t> stopping_selfrep_count = GetFlag(FLAGS_stopping_selfrep_count);
+  std::optional<size_t> stopping_selfrep_count =
+      GetFlag(FLAGS_stopping_selfrep_count);
 
   if (stopping_selfrep_count.has_value() && !params.eval_selfrep) {
     fprintf(stderr, "stopping_selfrep_count requires eval_selfrep\n");
@@ -333,7 +334,12 @@ int main(int argc, char **argv) {
     FILE *logfile = nullptr;
     if (log_to.has_value()) {
       logfile = CheckFopen(log_to->c_str(), "w");
-      fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy\n");
+      if (params.eval_selfrep) {
+        fprintf(logfile,
+                "epoch,brotli_size,soup_size,higher_entropy,number_selfreps\n");
+      } else {
+        fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy\n");
+      }
     }
 
     auto callback = [&](const SimulationState &state) {
@@ -372,7 +378,8 @@ int main(int argc, char **argv) {
              i++) {
           size_t separators[1] = {kSingleTapeSize};
           if (params.eval_selfrep) {
-            printf("%02d %02d ", (int)state.replication_per_prog[2*i], (int)state.replication_per_prog[2*i+1]);
+            printf("%02d %02d ", (int)state.replication_per_prog[2 * i],
+                   (int)state.replication_per_prog[2 * i + 1]);
           }
           language->PrintProgram(2 * kSingleTapeSize,
                                  state.soup.data() + i * 2 * kSingleTapeSize,
@@ -382,8 +389,14 @@ int main(int argc, char **argv) {
       }
 
       if (logfile) {
-        fprintf(logfile, "%zu,%zu,%zu,%f\n", state.epoch, state.brotli_size,
-                state.soup.size() / kSingleTapeSize, state.higher_entropy);
+        if (params.eval_selfrep) {
+          fprintf(logfile, "%zu,%zu,%zu,%f,%d\n", state.epoch,
+                  state.brotli_size, state.soup.size() / kSingleTapeSize,
+                  state.higher_entropy, repl_count);
+        } else {
+          fprintf(logfile, "%zu,%zu,%zu,%f\n", state.epoch, state.brotli_size,
+                  state.soup.size() / kSingleTapeSize, state.higher_entropy);
+        }
         fflush(logfile);
       }
 
@@ -451,7 +464,8 @@ int main(int argc, char **argv) {
       if (stopping_bpb.has_value() && state.brotli_bpb < *stopping_bpb) {
         return true;
       };
-      if (stopping_selfrep_count.has_value() && repl_count >= *stopping_selfrep_count) {
+      if (stopping_selfrep_count.has_value() &&
+          repl_count >= *stopping_selfrep_count) {
         return true;
       }
       return false;
