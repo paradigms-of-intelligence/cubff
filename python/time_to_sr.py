@@ -33,6 +33,7 @@ INIT_SEED = 0
 THRESHOLD_ENTROPY = 3
 
 MAX_EPOCHS = 1000000
+LANG = "forthtrivial"
 
 
 def find_threshold_epoch(params):
@@ -51,11 +52,11 @@ def find_threshold_epoch(params):
         ok = state.higher_entropy > THRESHOLD_ENTROPY
         return ok or state.epoch > MAX_EPOCHS + initial_epoch
 
-    language = cubff.GetLanguage("bff_noheads")
+    language = cubff.GetLanguage(LANG)
     language.RunSimulation(params, None, callback)
 
     if ok:
-        return epochs
+        return epoch
     return None
 
 
@@ -63,7 +64,7 @@ res = []
 seeds = list(range(NUM_RUNS))
 log_dir = os.path.join(dir_path, "..", "experimentlogs", "time_to_sr")
 os.makedirs(log_dir, exist_ok=True)
-with open(os.path.join(log_dir, str(NUM_RUNS) + ".log"), "a") as rs:
+with open(os.path.join(log_dir, LANG + str(NUM_RUNS) + ".log"), "a") as rs:
     for s in seeds:
         print("starting", s)
         params = cubff.SimulationParams()
