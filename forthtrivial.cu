@@ -12,9 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#define FORTH_CUSTOM_OPS
+
 #include <array>
 
 #include "forth.inc.h"
+__device__ __host__ ForthOp Forth::GetOpKind(uint8_t c) {
+  switch (c) {
+    case 0x0:
+      return ForthOp::kRead0;
+    case 0x1:
+      return ForthOp::kRead1;
+    case 0x2:
+      return ForthOp::kWrite0;
+    case 0x3:
+      return ForthOp::kWrite1;
+    case 0x4:
+      return ForthOp::kDup;
+    case 0x5:
+      return ForthOp::kDrop;
+    case 0x6:
+      return ForthOp::kSwap;
+    case 0x7:
+      return ForthOp::kIf0;
+    case 0x8:
+      return ForthOp::kInc;
+    case 0x9:
+      return ForthOp::kDec;
+    case 0xA:
+      return ForthOp::kAdd;
+    case 0xB:
+      return ForthOp::kSub;
+    case 0xC:
+      return ForthOp::kCopy0;
+    case 0xD:
+      return ForthOp::kCopy1;
+    default:
+      return (c >= 128 ? ForthOp::kJmp
+                       : (c >= 64 ? ForthOp::kConst : ForthOp::kNoop));
+  }
+}
 
 namespace {
 const char *Forth::name() { return "forthtrivial"; }
@@ -63,102 +101,4 @@ void Forth::InitByteColors(
   }
 }
 
-__device__ void Forth::EvaluateOne(uint8_t *tape, int &pos, size_t &nops,
-                                   Stack &stack) {
-  // 000000xy (00-03) -> (read|write)(0|1)
-  // 00000100 (04)    -> dup
-  // 00000101 (05)    -> drop
-  // 00000110 (06)    -> swap
-  // 00000111 (07)    -> if0
-  // 00001000 (08)    -> inc
-  // 00001001 (09)    -> dec
-  // 00001010 (0A)    -> add
-  // 00001011 (0B)    -> sub
-  // 0000110x (0C-0D) -> copy(0->1)(1->0)
-  // 01xxxxxx (40-7F) -> stack.Push unsigned constant xxxxxx
-  // 1Xxxxxxx (80-FF) -> jump to offset {+-}(xxxxxx+1)
-  uint8_t command = tape[pos];
-  if (command >= 128) {
-    int abs = (command & 63) + 1;
-    int jmp = command & 64 ? -abs : abs;
-    pos += jmp;
-  } else if (command >= 64) {
-    stack.Push(command & 63);
-    pos++;
-  } else {
-    switch (command) {
-      case 0x0:
-      case 0x1: {
-        int t = command & 1;
-        int addr = stack.Pop() % kSingleTapeSize;
-        stack.Push(tape[(t ? kSingleTapeSize : 0) + addr]);
-        break;
-      }
-      case 0x2:
-      case 0x3: {
-        int t = command & 1;
-        int val = stack.Pop();
-        int addr = stack.Pop() % kSingleTapeSize;
-        tape[(t ? kSingleTapeSize : 0) + addr] = val;
-        break;
-      }
-      case 0x4: {
-        int v = stack.Pop();
-        stack.Push(v);
-        stack.Push(v);
-        break;
-      }
-      case 0x5:
-        stack.Pop();
-        break;
-      case 0x6: {
-        int a = stack.Pop();
-        int b = stack.Pop();
-        stack.Push(a);
-        stack.Push(b);
-        break;
-      }
-      case 0x7: {
-        int v = stack.Pop();
-        if (v) {
-          pos++;
-        }
-        stack.Push(v);
-        break;
-      }
-      case 0x8: {
-        stack.Push(stack.Pop() + 1);
-        break;
-      }
-      case 0x9: {
-        stack.Push(stack.Pop() - 1);
-        break;
-      }
-      case 0xA: {
-        int a = stack.Pop();
-        int b = stack.Pop();
-        stack.Push(a + b);
-        break;
-      }
-      case 0xB: {
-        int a = stack.Pop();
-        int b = stack.Pop();
-        stack.Push(a - b);
-        break;
-      }
-      case 0xC:
-      case 0xD: {
-        int dir = command & 1;
-        int addr = stack.Pop() % kSingleTapeSize;
-        tape[(dir ? 0 : kSingleTapeSize) + addr] =
-            tape[(dir ? kSingleTapeSize : 0) + addr];
-        break;
-      }
-      default: {
-        nops++;
-      }
-    }
-    pos++;
-  }
-}
 }  // namespace
