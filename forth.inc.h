@@ -267,17 +267,6 @@ struct Forth {
 
   static __device__ void EvaluateOne(uint8_t *tape, int &pos, size_t &nops,
                                      Stack &stack) {
-    // 000000xy (00-03) -> (read|write)(0|1)
-    // 00000100 (04)    -> dup
-    // 00000101 (05)    -> drop
-    // 00000110 (06)    -> swap
-    // 00000111 (07)    -> if0
-    // 00001000 (08)    -> inc
-    // 00001001 (09)    -> dec
-    // 00001010 (0A)    -> add
-    // 00001011 (0B)    -> sub
-    // 01xxxxxx (40-7F) -> stack.Push unsigned constant xxxxxx
-    // 1Xxxxxxx (80-FF) -> jump to offset {+-}(xxxxxx+1)
     uint8_t command = tape[pos];
     switch (GetOpKind(command)) {
       case kRead0: {
@@ -359,6 +348,7 @@ struct Forth {
         break;
       }
       case kConst: {
+        // 01xxxxxx (40-7F) -> stack.Push unsigned constant xxxxxx
         stack.Push(command & 63);
         break;
       }
@@ -384,6 +374,7 @@ struct Forth {
       }
 
       case kJmp: {
+        // 1Xxxxxxx (80-FF) -> jump to offset {+-}(xxxxxx+1)
         int abs = (command & 63) + 1;
         int jmp = command & 64 ? -abs : abs;
         pos += jmp;
