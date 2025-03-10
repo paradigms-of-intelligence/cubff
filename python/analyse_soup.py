@@ -70,14 +70,56 @@ def print_forth(p):
     print("\n")
 
 
+def print_forthcopy(p):
+    for i, b in p:
+        match b.to_bytes():
+            case b"\x00":
+                print(f"{CSTART+str(i)+CEND}READ", end=" ")
+            case b"\x01":
+                print(f"{CSTART+str(i)+CEND}WRITE", end=" ")
+            case b"\x02":
+                print(f"{CSTART+str(i)+CEND}COPY", end=" ")
+            case b"\x03":
+                print(f"{CSTART+str(i)+CEND}XOR", end=" ")
+            case b"\x04":
+                print(f"{CSTART+str(i)+CEND}DUP", end=" ")
+            case b"\x05":
+                print(f"{CSTART+str(i)+CEND}DROP", end=" ")
+            case b"\x06":
+                print(f"{CSTART+str(i)+CEND}SWAP", end=" ")
+            case b"\x07":
+                print(f"{CSTART+str(i)+CEND}IF0", end=" ")
+            case b"\x08":
+                print(f"{CSTART+str(i)+CEND}INC", end=" ")
+            case b"\x09":
+                print(f"{CSTART+str(i)+CEND}DEC", end=" ")
+            case b"\x0A":
+                print(f"{CSTART+str(i)+CEND}ADD", end=" ")
+            case b"\x0B":
+                print(f"{CSTART+str(i)+CEND}SUB", end=" ")
+            case b"\x0C":
+                print(f"{CSTART+str(i)+CEND}COPY0", end=" ")
+            case b"\x0D":
+                print(f"{CSTART+str(i)+CEND}COPY1", end=" ")
+            case _:
+                if b >> 7 & 1:
+                    print(
+                        f"{CSTART+str(i)+CEND}JUMP{'-'if b>>6&1 else '+'}{(b&63)+1}",
+                        end=" ",
+                    )
+                else:
+                    print(f"{CSTART+str(i)+CEND}PUSH{b&63}", end=" ")
+    print("\n")
+
+
 def forth_loop(p):
     i = 0
     c = 0
     vis = [0 for _ in p]
-    
+
     while i < MAX_INSTR:
         if vis[c]:
-          return True
+            return True
         vis[c] = 1
         if p[c] == 7:
             c += 2
@@ -130,6 +172,14 @@ def analyse(filename, lang):
                     enumerate(p),
                 )
                 print_forth(pr)
+            if lang == "forthcopy":
+                pr = filter(
+                    lambda x: x[1]
+                    in b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B"
+                    or x[1].to_bytes() >= b"\x40",
+                    enumerate(p),
+                )
+                print_forthcopy(pr)
             if lang == "forthtrivial":
                 pr = filter(
                     lambda x: x[1]
