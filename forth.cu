@@ -43,79 +43,83 @@ __device__ void Forth::EvaluateOne(uint8_t *tape, int &pos, size_t &nops,
   // 01xxxxxx (40-7F) -> stack.Push unsigned constant xxxxxx
   // 1Xxxxxxx (80-FF) -> jump to offset {+-}(xxxxxx+1)
   uint8_t command = tape[pos];
-  if (command >= 128) {
-    int abs = (command & 63) + 1;
-    int jmp = command & 64 ? -abs : abs;
-    pos += jmp;
-  } else if (command >= 64) {
-    stack.Push(command & 63);
-    pos++;
-  } else {
-    switch (command) {
-      case 0x0:
-      case 0x1: {
-        int t = command & 1;
-        int addr = stack.Pop() % kSingleTapeSize;
-        stack.Push(tape[(t ? kSingleTapeSize : 0) + addr]);
-        break;
-      }
-      case 0x2:
-      case 0x3: {
-        int t = command & 1;
-        int val = stack.Pop();
-        int addr = stack.Pop() % kSingleTapeSize;
-        tape[(t ? kSingleTapeSize : 0) + addr] = val;
-        break;
-      }
-      case 0x4: {
-        int v = stack.Pop();
-        stack.Push(v);
-        stack.Push(v);
-        break;
-      }
-      case 0x5:
-        stack.Pop();
-        break;
-      case 0x6: {
-        int a = stack.Pop();
-        int b = stack.Pop();
-        stack.Push(a);
-        stack.Push(b);
-        break;
-      }
-      case 0x7: {
-        int v = stack.Pop();
-        if (v) {
-          pos++;
-        }
-        stack.Push(v);
-        break;
-      }
-      case 0x8: {
-        stack.Push(stack.Pop() + 1);
-        break;
-      }
-      case 0x9: {
-        stack.Push(stack.Pop() - 1);
-        break;
-      }
-      case 0xA: {
-        int a = stack.Pop();
-        int b = stack.Pop();
-        stack.Push(a + b);
-        break;
-      }
-      case 0xB: {
-        int a = stack.Pop();
-        int b = stack.Pop();
-        stack.Push(a - b);
-        break;
-      }
-      default: {
-        nops++;
-      }
+  switch (command) {
+    case kRead0:
+    case kRead1: {
+      int t = command & 1;
+      int addr = stack.Pop() % kSingleTapeSize;
+      stack.Push(tape[(t ? kSingleTapeSize : 0) + addr]);
+      break;
     }
-    pos++;
+    case kWrite0:
+    case kWrite1: {
+      int t = command & 1;
+      int val = stack.Pop();
+      int addr = stack.Pop() % kSingleTapeSize;
+      tape[(t ? kSingleTapeSize : 0) + addr] = val;
+      break;
+    }
+    case kDup: {
+      int v = stack.Pop();
+      stack.Push(v);
+      stack.Push(v);
+      break;
+    }
+    case kDrop:
+      stack.Pop();
+      break;
+    case kSwap: {
+      int a = stack.Pop();
+      int b = stack.Pop();
+      stack.Push(a);
+      stack.Push(b);
+      break;
+    }
+    case kIf0: {
+      int v = stack.Pop();
+      if (v) {
+        pos++;
+      }
+      stack.Push(v);
+      break;
+    }
+    case kInc: {
+      stack.Push(stack.Pop() + 1);
+      break;
+    }
+    case kDec: {
+      stack.Push(stack.Pop() - 1);
+      break;
+    }
+    case kAdd: {
+      int a = stack.Pop();
+      int b = stack.Pop();
+      stack.Push(a + b);
+      break;
+    }
+    case kSub: {
+      int a = stack.Pop();
+      int b = stack.Pop();
+      stack.Push(a - b);
+      break;
+    }
+    case kConst: {
+      stack.Push(command & 63);
+      pos++;
+      break;
+    }
+    case kJmp: {
+      int abs = (command & 63) + 1;
+      int jmp = command & 64 ? -abs : abs;
+      pos += jmp;
+      pos--;
+      break;
+    }
+
+    default: {
+      nops++;
+    }
   }
+  pos++;
 }
 }  // namespace
