@@ -125,105 +125,88 @@ struct Forth {
   static __device__ __host__ void PrintProgramInternal(
       size_t pc_pos, const uint8_t *mem, size_t len, const size_t *separators,
       size_t num_separators, const uint8_t *stack, size_t stack_len) {
-    auto print_char = [&](char c, size_t i) {
+    auto print_char = [&](char c, int i) {
       ForthOp kind = GetOpKind((uint8_t)c);
       char chmem[4];
       if (i == pc_pos) {
         printf("\x1b[48:5:22m");
       }
-      switch (kind) {
-        case kWrite:
-          printf("\x1b[38:5:207m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Write",
-                 MapChar(c, chmem));
-          break;
-        case kWrite0:
-          printf("\x1b[38:5:207m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Write0",
-                 MapChar(c, chmem));
-          break;
-        case kWrite1:
-          printf("\x1b[38:5:207m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Write1",
-                 MapChar(c, chmem));
-          break;
-        case kRead:
-          printf("\x1b[38:5:112m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Read",
-                 MapChar(c, chmem));
-          break;
-        case kRead0:
-          printf("\x1b[38:5:112m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Read0",
-                 MapChar(c, chmem));
-          break;
-        case kRead1:
-          printf("\x1b[38:5:112m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Read1",
-                 MapChar(c, chmem));
-          break;
-        case kCopy:
-          printf("\x1b[38:5:141m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Copy",
-                 MapChar(c, chmem));
-          break;
-        case kCopy0:
-          printf("\x1b[38:5:141m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Copy0",
-                 MapChar(c, chmem));
-          break;
-        case kCopy1:
-          printf("\x1b[38:5:141m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Copy1",
-                 MapChar(c, chmem));
-          break;
-        case kXor:
-          printf("\x1b[38:5:196m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Xor",
-                 MapChar(c, chmem));
-          break;
-        case kDup:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Dup",
-                 MapChar(c, chmem));
-          break;
-        case kDrop:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Drop",
-                 MapChar(c, chmem));
-          break;
-        case kSwap:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Swap",
-                 MapChar(c, chmem));
-          break;
-        case kIf0:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "If0",
-                 MapChar(c, chmem));
-          break;
-        case kInc:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Inc",
-                 MapChar(c, chmem));
-          break;
-        case kDec:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Dec",
-                 MapChar(c, chmem));
-          break;
-        case kAdd:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Add",
-                 MapChar(c, chmem));
-          break;
-        case kSub:
-          printf("\x1b[38:5:255m\e]8;;%zu%s\e\\%s\e]8;;\e\\", i, "Sub",
-                 MapChar(c, chmem));
-          break;
-        case kConst:
-          printf("\x1b[38:5:255m\e]8;;%zu%s%d\e\\%s\e]8;;\e\\", i, "Const",
-                 ((uint8_t)c) & 63, MapChar(c, chmem));
-          break;
-        case kJmp:
-          ((uint8_t)c) & 64
-              ? printf("\x1b[38:5:221m\e]8;;%zu%s%s%d\e\\%s\e]8;;\e\\", i,
-                       "Jmp", "-", (((uint8_t)c) & 63) + 1, MapChar(c, chmem))
-              : printf("\x1b[38:5:117m\e]8;;%zu%s%s%d\e\\%s\e]8;;\e\\", i,
-                       "Jmp", "+", (((uint8_t)c) & 63) + 1, MapChar(c, chmem));
-          break;
-        case kNoop:
-          printf("\x1b[38:5:237m\e]8;;%zu\e\\%s\e]8;;\e\\", i,
-                 MapChar(c, chmem));
-          break;
+      if (kind == kJmp) {
+        ((uint8_t)c) & 64
+            ? printf("\x1b[38:5:221m\e]8;;%d%s%s%d\e\\%s\e]8;;\e\\", i, "Jmp",
+                     "-", (((uint8_t)c) & 63) + 1, MapChar(c, chmem))
+            : printf("\x1b[38:5:117m\e]8;;%d%s%s%d\e\\%s\e]8;;\e\\", i, "Jmp",
+                     "+", (((uint8_t)c) & 63) + 1, MapChar(c, chmem));
+      } else if (kind == kConst) {
+        printf("\x1b[38:5:255m\e]8;;%d%s%d\e\\%s\e]8;;\e\\", i, "Const",
+               ((uint8_t)c) & 63, MapChar(c, chmem));
+      } else {
+        switch (kind) {
+          case kWrite:
+            printf("\x1b[38:5:207m%s", MapChar(c, chmem));
+            break;
+          case kWrite0:
+            printf("\x1b[38:5:207m%s", MapChar(c, chmem));
+            break;
+          case kWrite1:
+            printf("\x1b[38:5:207m%s", MapChar(c, chmem));
+            break;
+          case kRead:
+            printf("\x1b[38:5:112m%s", MapChar(c, chmem));
+            break;
+          case kRead0:
+            printf("\x1b[38:5:112m%s", MapChar(c, chmem));
+            break;
+          case kRead1:
+            printf("\x1b[38:5:112m%s", MapChar(c, chmem));
+            break;
+          case kCopy:
+            printf("\x1b[38:5:141m%s", MapChar(c, chmem));
+            break;
+          case kCopy0:
+            printf("\x1b[38:5:141m%s", MapChar(c, chmem));
+            break;
+          case kCopy1:
+            printf("\x1b[38:5:141m%s", MapChar(c, chmem));
+            break;
+          case kXor:
+            printf("\x1b[38:5:196m%s", MapChar(c, chmem));
+            break;
+          case kDup:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kDrop:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kSwap:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kIf0:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kInc:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kDec:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kAdd:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kSub:
+            printf("\x1b[38:5:255m%s", MapChar(c, chmem));
+            break;
+          case kNoop:
+            printf("\x1b[38:5:237m%s", MapChar(c, chmem));
+            break;
+          default:
+            break;
+        }
       }
       printf("%s", ResetColors());
     };
     size_t sep_id = 0;
-    for (size_t i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++) {
       if (sep_id < num_separators && separators[sep_id] == i) {
         printf("   ");
         sep_id++;
@@ -264,7 +247,7 @@ struct Forth {
     };
     __device__ uint8_t Pop() { return stackpos == 0 ? 0 : data[--stackpos]; };
   };
-
+#ifndef FORTH_CUSTOM_LOGIC
   static __device__ void EvaluateOne(uint8_t *tape, int &pos, size_t &nops,
                                      Stack &stack) {
     uint8_t command = tape[pos];
@@ -388,6 +371,11 @@ struct Forth {
     }
     pos++;
   }
+#else
+
+  static __device__ void EvaluateOne(uint8_t *tape, int &pos, size_t &nops,
+                                     Stack &stack);
+#endif
   static __device__ size_t Evaluate(uint8_t *tape, size_t stepcount,
                                     bool debug) {
     Stack stack;
