@@ -19,6 +19,7 @@ jobs:
           - forthcopy
           - forth
           - forthtrivial
+          - forthtrivial_reset
           - rsubleq4
           - subleq
 
