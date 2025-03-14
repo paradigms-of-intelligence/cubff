@@ -141,10 +141,6 @@ struct Forth {
         printf("\x1b[38:5:255m\e]8;;%d%s%d\e\\%s\e]8;;\e\\", i, "Const",
                ((uint8_t)c) & 63, MapChar(c, chmem));
       } else {
-        if (i % 16 == 0) {
-          // printf("\e]8;;%d\e\\", i);
-        }
-
         switch (kind) {
           case kWrite:
             printf("\x1b[38:5:207m%s", MapChar(c, chmem));
@@ -206,9 +202,6 @@ struct Forth {
           default:
             break;
         }
-      }
-      if (i % 16 == 0) {
-        // printf("\e]8;;\e\\");
       }
       printf("%s", ResetColors());
     };
