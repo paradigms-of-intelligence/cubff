@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
         }
         printf("\n\n\n");
 
-        for (size_t i = 0; i < std::min<size_t>(48, params.num_programs / 2);
+        for (size_t i = 0; i < std::min<size_t>(512, params.num_programs / 2);
              i++) {
           size_t separators[1] = {kSingleTapeSize};
           if (params.eval_selfrep) {

@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <numeric>
 #include <random>
 #include <string>
 #include <vector>
@@ -152,6 +153,33 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
                 256;
     }
   }
+}
+
+template <typename Language>
+__global__ void RunPair(uint8_t *programs, size_t p1, size_t p2, size_t seed,
+                        uint32_t mutation_prob,
+                        unsigned long long *insn_count) {
+  uint8_t tape[2 * kSingleTapeSize] = {};
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    tape[i] = programs[p1 * kSingleTapeSize + i];
+    tape[i + kSingleTapeSize] = programs[p2 * kSingleTapeSize + i];
+  }
+  for (size_t i = 0; i < 2 * kSingleTapeSize; i++) {
+    uint64_t rng = SplitMix64(seed * kSingleTapeSize * 2 + i);
+    uint8_t repl = rng & 0xFF;
+    uint64_t prob_rng = (rng >> 8) & ((1ULL << 30) - 1);
+    if (prob_rng < mutation_prob) {
+      tape[i] = repl;
+    }
+  }
+  bool debug = false;
+  size_t ops;
+  ops = Language::Evaluate(tape, 8 * 1024, debug);
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    programs[p1 * kSingleTapeSize + i] = tape[i];
+    programs[p2 * kSingleTapeSize + i] = tape[i + kSingleTapeSize];
+  }
+  IncreaseInsnCount(ops, insn_count);
 }
 
 template <typename Language>
@@ -310,10 +338,9 @@ void Simulation<Language>::PrintProgram(size_t pc_pos, const uint8_t *mem,
 }
 
 template <typename Language>
-std::vector<uint8_t> Simulation<Language>::Parse(const std::string& program) {
+std::vector<uint8_t> Simulation<Language>::Parse(const std::string &program) {
   return Language::Parse(program);
 }
-
 
 template <typename Language>
 size_t Simulation<Language>::EvalSelfrep(std::string program, size_t epoch,
@@ -415,14 +442,6 @@ void Simulation<Language>::RunSimulation(
 
   Synchronize();
 
-  auto do_shuffle = [&](uint32_t *begin, uint32_t *end, uint64_t base_seed) {
-    size_t len = end - begin;
-    for (size_t i = len; i-- > 0;) {
-      size_t j = SplitMix64(seed(epoch * len + i)) % (i + 1);
-      std::swap(begin[i], begin[j]);
-    }
-  };
-
   std::vector<uint8_t> brotlified_data(
       BrotliEncoderMaxCompressedSize(num_programs * kSingleTapeSize));
 
@@ -430,68 +449,14 @@ void Simulation<Language>::RunSimulation(
   auto start = std::chrono::high_resolution_clock::now();
   auto simulation_start = std::chrono::high_resolution_clock::now();
   for (;; epoch++) {
-    size_t num_indices = num_programs / 2;
-    // Shuffle indices.
-    if (!params.allowed_interactions.empty()) {
-      for (size_t i = 0; i < num_programs; i++) {
-        shuffle_tmp_buf[i] = i;
-        used_program[i] = false;
-      }
-      do_shuffle(shuffle_tmp_buf.data(),
-                 shuffle_tmp_buf.data() + shuffle_tmp_buf.size(), epoch);
-      num_indices = 0;
-      for (size_t i : shuffle_tmp_buf) {
-        auto &interact = params.allowed_interactions;
-        if (interact.size() <= i || interact[i].empty()) {
-          continue;
-        }
-        size_t idx = seed(seed(epoch) ^ seed(i)) % interact[i].size();
-        size_t neigh = interact[i][idx];
-        if (used_program[i] || used_program[neigh]) {
-          continue;
-        }
-        used_program[i] = used_program[neigh] = true;
-        s[num_indices * 2] = i;
-        s[num_indices * 2 + 1] = neigh;
-        num_indices++;
-      }
-      size_t idx = num_indices * 2;
-      for (size_t i = 0; i < num_programs; i++) {
-        if (!used_program[i]) {
-          s[idx++] = i;
-        }
-      }
-    } else if (params.permute_programs) {
-      for (size_t i = 0; i < num_programs; i++) {
-        s[i] = i;
-      }
-      if (params.fixed_shuffle) {
-        size_t flip = epoch & 1;
-        size_t max_pow2 = 31 - __builtin_clz(num_programs);
-        size_t offset = (1 << (epoch % max_pow2 + 1)) - 1;
-        for (size_t i = 0; i < num_programs; i++) {
-          s[i] = ((i * offset) % num_programs) ^ flip;
-        }
-      } else {
-        do_shuffle(s.data(), s.data() + s.size(), epoch);
-      }
-    } else if (epoch % 2 == 1) {
-      for (size_t i = 0; i < num_programs; i++) {
-        s[i] = i;
-      }
-    } else {
-      for (size_t i = 0; i < num_programs; i++) {
-        s[i] = i == 0 ? num_programs - 1 : i - 1;
-      }
+    size_t p1 = SplitMix64(seed(seed(epoch) ^ seed(1))) % num_programs;
+    size_t p2 = SplitMix64(seed(seed(epoch) ^ seed(2))) % num_programs;
+    for (size_t i = 1; p1 == p2; i++) {
+      p2 = SplitMix64(seed(seed(epoch) ^ seed(2 + i))) % num_programs;
     }
 
-    shuf_idx.Write(s.data(), num_programs);
-
-    RUN((num_programs + 2 * kNumThreads - 1) / (2 * kNumThreads), kNumThreads,
-        MutateAndRunPrograms<Language>, programs.Get(), shuf_idx.Get(),
-        seed(epoch), params.mutation_prob, insn_count.Get(), num_programs,
-        num_indices);
-    num_runs += num_indices;
+    RUN(1, 1, RunPair<Language>, programs.Get(), p1, p2, seed(epoch),
+        params.mutation_prob, insn_count.Get());
 
     if (epoch % params.callback_interval == 0) {
       auto stop = std::chrono::high_resolution_clock::now();
