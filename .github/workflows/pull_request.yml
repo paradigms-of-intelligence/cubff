@@ -16,6 +16,7 @@ jobs:
           - bff_noheads_4bit
           - bff_noheads
           - bff_perm
+          - bff_selfmove
           - forthcopy
           - forth
           - forthtrivial
