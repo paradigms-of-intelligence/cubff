@@ -87,7 +87,7 @@ def character_repr() -> List[str]:
 
     # Special letter mappings (A through I)
     for i, char in enumerate("ABCDEFGHI"):
-        data[0xC8 + i] = char
+        data[0xC4 + i] = char
 
     # Special letter mappings (J, K, L)
     for i, char in enumerate("JKL"):
@@ -135,12 +135,14 @@ def parse(bff_str: str) -> bytearray:
             s = char_repr[j]
             if i + len(s) <= len(bff_str) and bff_str[i:i+len(s)] == s:
                 ret.append(j)
+                if len(s) > 1:
+                    print(i, len(s))
                 i += len(s)
                 found = True
                 break
 
         if not found:
-            print(f"Invalid BFF program, character {i} not recognized: {bff_str}")
+            print(f"Invalid BFF program, character {i} not recognized {bff_str[i]}: {bff_str}")
             break
 
     # Enforce the tape size requirement
