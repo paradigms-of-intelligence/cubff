@@ -2,8 +2,8 @@
 
 This project provides a (optionally) CUDA-based implementation of a
 self-modifying soup of programs which show emergence of self-replicators. Most
-experiments in the "Life on Computational Substrates: How Self Replicators Arise
-from Simple Interactions" paper (arxiv link (https://arxiv.org/abs/2406.19108) were done using this code.
+experiments in the "Computational Life: How Well-formed, Self-replicating Programs 
+Emerge from Simple Interaction" paper (arxiv link (https://arxiv.org/abs/2406.19108) were done using this code.
 
 ## Dependencies
 On debian-based systems, install `build-essential` and `libbrotli-dev` (and optionally CUDA):
