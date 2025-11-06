@@ -155,6 +155,38 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
 }
 
 template <typename Language>
+__global__ void InitSomePrograms(size_t seed, size_t num_programs,
+                                 uint8_t* programs, size_t* when_above,
+                                 size_t threshold) {
+  size_t index = GetIndex();
+  auto prog = programs + index * kSingleTapeSize;
+  if (index >= num_programs) return;
+  if (when_above[index] <= threshold) return;
+  fprintf(stderr, "foo\n");
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    prog[i] = SplitMix64(kSingleTapeSize * num_programs * seed +
+                         kSingleTapeSize * index + i) %
+              256;
+  }
+}
+
+template <typename Language>
+__global__ void MutatePrograms(uint8_t* programs, size_t seed,
+                               uint32_t mutation_prob, size_t num_programs) {
+  size_t index = GetIndex();
+  if (index >= num_programs) return;
+  for (size_t i = 0; i < kSingleTapeSize; i++) {
+    uint64_t rng =
+        SplitMix64((num_programs * seed + index) * kSingleTapeSize + i);
+    uint8_t repl = rng & 0xFF;
+    uint64_t prob_rng = (rng >> 8) & ((1ULL << 30) - 1);
+    if (prob_rng < mutation_prob) {
+      programs[index * kSingleTapeSize + i] = repl;
+    }
+  }
+}
+
+template <typename Language>
 __global__ void MutateAndRunPrograms(uint8_t* programs,
                                      const uint32_t* shuf_idx, size_t seed,
                                      uint32_t mutation_prob,
@@ -342,7 +374,8 @@ size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t>& parsed,
 
 template <typename Language>
 size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
-                                            size_t seed0, bool debug) const {
+                                            size_t seed0, size_t depth,
+                                            bool debug) const {
   constexpr size_t kNumThreads = 32;
   size_t num_programs = params.num_programs;
 
@@ -357,23 +390,37 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
   RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
       InitPrograms<Language>, seed(seed0), num_programs, programs.Get(),
       params.zero_init);
-  Synchronize();
-  RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
-      CheckSelfRep<Language>, programs.Get(), 0, num_programs, result.Get(),
-      debug);
-  Synchronize();
-  std::vector<size_t> res(num_programs);
-  result.Read(res.data(), num_programs);
   size_t count = 0;
-  std::vector<uint8_t> prog(kSingleTapeSize * num_programs);
-  programs.Read(prog.data(), kSingleTapeSize * num_programs);
-  for (int i = 0; i < num_programs; ++i) {
-    if (res[i] > kSelfrepThreshold) {
-      count++;
-      uint8_t* tape = &prog[0] + i * kSingleTapeSize;
-      Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
-                             nullptr, 0);
+  for (size_t i = 0; i < depth; i++) {
+    Synchronize();
+    RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
+        CheckSelfRep<Language>, programs.Get(), 0, num_programs, result.Get(),
+        debug);
+    Synchronize();
+    std::vector<size_t> res(num_programs);
+    result.Read(res.data(), num_programs);
+    std::vector<uint8_t> prog(kSingleTapeSize * num_programs);
+    programs.Read(prog.data(), kSingleTapeSize * num_programs);
+    bool found = false;
+    for (size_t r : res) {
+      if (r > kSelfrepThreshold) {
+        fprintf(stderr, "A %zu\n", i);
+        found = true;
+        uint8_t* tape = &prog[0] + i * kSingleTapeSize;
+        Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
+                               nullptr, 0);
+      }
     }
+    if (found) {
+      count++;
+      RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
+          InitPrograms<Language>, seed(seed0 + 2 * i + 1), num_programs,
+          programs.Get(), params.zero_init);
+    }
+    RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
+        MutatePrograms<Language>, programs.Get(), seed(seed0 + 2 * i + 2),
+        (1 << 30) / 200, num_programs);
+    Synchronize();
   }
   return count;
 }

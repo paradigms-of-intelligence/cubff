@@ -177,6 +177,7 @@ void ParseCommandLine(int argc, char** argv) {
 FLAG(std::optional<std::string>, run, std::nullopt, "run a program");
 FLAG(std::optional<std::size_t>, sample, std::nullopt,
      "sample programs and test for selfreplication");
+FLAG(size_t, sample_depth, 1, "how long to keep mutating sampled programs");
 FLAG(size_t, run_steps, 32 * 1024, "max number of steps for running a program");
 FLAG(bool, debug, false, "print execution step by step");
 FLAG(size_t, num, 128 * 1024, "number of programs to evolve");
@@ -334,23 +335,33 @@ int main(int argc, char** argv) {
     language->RunSingleProgram(run_flag.value(), GetFlag(FLAGS_run_steps),
                                debug);
   } else if (sample_flag.has_value()) {
+    // choose a width
+    // pick width programs
+    // {
+    //   evaluate them all for selfrep; if something is one, count and reset to
+    //   random pick a subset of bytes to change to random values
+    // }
+    size_t depth = GetFlag(FLAGS_sample_depth);
     size_t sampled = 0;
     size_t replicators = 0;
     for (size_t i = 0; i < sample_flag.value(); ++i) {
       sampled += params.num_programs;
-      replicators += language->SamplePrograms(params, i, debug);
+      replicators += language->SamplePrograms(params, i, depth, debug);
     }
-    printf("tested %zu programs, found %zu replicators\n", sampled,
-           replicators);
+    printf(
+        "tested %zu programs for %zu iterations each, found %zu replicators\n",
+        sampled, depth, replicators);
   } else {
     FILE* logfile = nullptr;
     if (log_to.has_value()) {
       logfile = CheckFopen(log_to->c_str(), "w");
       if (params.eval_selfrep) {
         fprintf(logfile,
-                "epoch,brotli_size,soup_size,higher_entropy,soup_bytes_diff,number_selfreps\n");
+                "epoch,brotli_size,soup_size,higher_entropy,soup_bytes_diff,"
+                "number_selfreps\n");
       } else {
-        fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy,soup_bytes_diff\n");
+        fprintf(logfile,
+                "epoch,brotli_size,soup_size,higher_entropy,soup_bytes_diff\n");
       }
     }
 
@@ -365,7 +376,7 @@ int main(int argc, char** argv) {
       }
       int soup_bytes_diff = 0;
       if (!prev_soup.empty()) {
-        for(int i = 0; i < state.soup.size(); i++) {
+        for (int i = 0; i < state.soup.size(); i++) {
           if (state.soup[i] != prev_soup[i]) {
             soup_bytes_diff++;
           }
@@ -418,9 +429,9 @@ int main(int argc, char** argv) {
                   state.brotli_size, state.soup.size() / kSingleTapeSize,
                   state.higher_entropy, soup_bytes_diff, repl_count);
         } else {
-          fprintf(logfile, "%zu,%zu,%zu,%f,%d\n", state.epoch, state.brotli_size,
-                  state.soup.size() / kSingleTapeSize, state.higher_entropy,
-                  soup_bytes_diff);
+          fprintf(logfile, "%zu,%zu,%zu,%f,%d\n", state.epoch,
+                  state.brotli_size, state.soup.size() / kSingleTapeSize,
+                  state.higher_entropy, soup_bytes_diff);
         }
         fflush(logfile);
       }

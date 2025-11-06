@@ -108,7 +108,7 @@ struct LanguageInterface {
                                    size_t seed, bool debug) = 0;
   virtual std::vector<uint8_t> Parse(const std::string& program) = 0;
   virtual size_t SamplePrograms(const SimulationParams& params, size_t seed0,
-                                bool debug) const = 0;
+                                size_t depth, bool debug) const = 0;
 };
 
 template <typename Language>
@@ -130,7 +130,7 @@ struct Simulation : public LanguageInterface {
                            size_t seed, bool debug) override;
   std::vector<uint8_t> Parse(const std::string& program) override;
   size_t SamplePrograms(const SimulationParams& params, size_t seed0,
-                        bool debug) const override;
+                        size_t depth, bool debug) const override;
 };
 
 void RegisterLanguage(const char* lang,
