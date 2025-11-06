@@ -348,11 +348,13 @@ int main(int argc, char** argv) {
       logfile = CheckFopen(log_to->c_str(), "w");
       if (params.eval_selfrep) {
         fprintf(logfile,
-                "epoch,brotli_size,soup_size,higher_entropy,number_selfreps\n");
+                "epoch,brotli_size,soup_size,higher_entropy,soup_bytes_diff,number_selfreps\n");
       } else {
-        fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy\n");
+        fprintf(logfile, "epoch,brotli_size,soup_size,higher_entropy,soup_bytes_diff\n");
       }
     }
+
+    std::vector<uint8_t> prev_soup;
 
     auto callback = [&](const SimulationState& state) {
       int repl_count = 0;
@@ -361,6 +363,16 @@ int main(int argc, char** argv) {
           repl_count++;
         }
       }
+      int soup_bytes_diff = 0;
+      if (!prev_soup.empty()) {
+        for(int i = 0; i < state.soup.size(); i++) {
+          if (state.soup[i] != prev_soup[i]) {
+            soup_bytes_diff++;
+          }
+        }
+      }
+      prev_soup = state.soup;
+
       if (!GetFlag(FLAGS_disable_output)) {
         if (state.epoch % clear_interval == 1) {
           printf("%s\033[2J\033[H", ResetColors());
@@ -402,12 +414,13 @@ int main(int argc, char** argv) {
 
       if (logfile) {
         if (params.eval_selfrep) {
-          fprintf(logfile, "%zu,%zu,%zu,%f,%d\n", state.epoch,
+          fprintf(logfile, "%zu,%zu,%zu,%f,%d,%d\n", state.epoch,
                   state.brotli_size, state.soup.size() / kSingleTapeSize,
-                  state.higher_entropy, repl_count);
+                  state.higher_entropy, soup_bytes_diff, repl_count);
         } else {
-          fprintf(logfile, "%zu,%zu,%zu,%f\n", state.epoch, state.brotli_size,
-                  state.soup.size() / kSingleTapeSize, state.higher_entropy);
+          fprintf(logfile, "%zu,%zu,%zu,%f,%d\n", state.epoch, state.brotli_size,
+                  state.soup.size() / kSingleTapeSize, state.higher_entropy,
+                  soup_bytes_diff);
         }
         fflush(logfile);
       }
