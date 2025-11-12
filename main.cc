@@ -340,7 +340,8 @@ int main(int argc, char** argv) {
       sampled += params.num_programs;
       replicators += language->SamplePrograms(params, i, debug);
     }
-    printf("tested %zu programs, found %zu replicators", sampled, replicators);
+    printf("tested %zu programs, found %zu replicators\n", sampled,
+           replicators);
   } else {
     FILE* logfile = nullptr;
     if (log_to.has_value()) {

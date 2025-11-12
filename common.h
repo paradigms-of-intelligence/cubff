@@ -52,7 +52,7 @@ __device__ __host__
 }
 
 constexpr int kSingleTapeSize = 64;
-constexpr int kSelfrepThreshold = 48;
+constexpr int kSelfrepThreshold = 45;
 
 struct SimulationParams {
   size_t num_programs = 128 * 1024;
