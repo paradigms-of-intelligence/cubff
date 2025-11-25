@@ -137,7 +137,8 @@ inline __device__ __host__ uint64_t SplitMix64(uint64_t seed) {
 
 template <typename Language>
 __global__ void InitPrograms(size_t seed, size_t num_programs,
-                             uint8_t* programs, bool zero_init) {
+                             uint8_t* programs, bool zero_init,
+                             uint32_t* distr) {
   size_t index = GetIndex();
   auto prog = programs + index * kSingleTapeSize;
   if (index >= num_programs) return;
@@ -145,11 +146,26 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
     for (size_t i = 0; i < kSingleTapeSize; i++) {
       prog[i] = 0;
     }
-  } else {
+  } else if (!distr) {
     for (size_t i = 0; i < kSingleTapeSize; i++) {
       prog[i] = SplitMix64(kSingleTapeSize * num_programs * seed +
                            kSingleTapeSize * index + i) %
                 256;
+    }
+  } else {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      uint64_t rng =
+          SplitMix64((num_programs * seed + index) * kSingleTapeSize + i);
+      uint32_t repl_cdf = rng & ((1ULL << 32) - 1);
+      int sum = 0;
+      for (int j = 0; j < 256; j++) sum += distr[j];
+      repl_cdf %= sum;
+      int repl = 0;
+      while (repl_cdf > distr[repl]) {
+        repl_cdf -= distr[repl];
+        repl++;
+      }
+      programs[index * kSingleTapeSize + i] = repl;
     }
   }
 }
@@ -172,16 +188,37 @@ __global__ void InitSomePrograms(size_t seed, size_t num_programs,
 
 template <typename Language>
 __global__ void MutatePrograms(uint8_t* programs, size_t seed,
-                               uint32_t mutation_prob, size_t num_programs) {
+                               uint32_t mutation_prob, size_t num_programs,
+                               uint32_t* distr) {
   size_t index = GetIndex();
   if (index >= num_programs) return;
-  for (size_t i = 0; i < kSingleTapeSize; i++) {
-    uint64_t rng =
-        SplitMix64((num_programs * seed + index) * kSingleTapeSize + i);
-    uint8_t repl = rng & 0xFF;
-    uint64_t prob_rng = (rng >> 8) & ((1ULL << 30) - 1);
-    if (prob_rng < mutation_prob) {
-      programs[index * kSingleTapeSize + i] = repl;
+  if (!distr) {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      uint64_t rng =
+          SplitMix64((num_programs * seed + index) * kSingleTapeSize + i);
+      uint8_t repl = rng & 0xFF;
+      uint64_t prob_rng = (rng >> 8) & ((1ULL << 30) - 1);
+      if (prob_rng < mutation_prob) {
+        programs[index * kSingleTapeSize + i] = repl;
+      }
+    }
+  } else {
+    for (size_t i = 0; i < kSingleTapeSize; i++) {
+      uint64_t rng =
+          SplitMix64((num_programs * seed + index) * kSingleTapeSize + i);
+      uint64_t prob_rng = (rng >> 32) & ((1ULL << 30) - 1);
+      uint32_t repl_cdf = rng & ((1ULL << 32) - 1);
+      if (prob_rng < mutation_prob) {
+        int sum = 0;
+        for (int j = 0; j < 256; j++) sum += distr[j];
+        repl_cdf %= sum;
+        int repl = 0;
+        while (repl_cdf > distr[repl]) {
+          repl_cdf -= distr[repl];
+          repl++;
+        }
+        programs[index * kSingleTapeSize + i] = repl;
+      }
     }
   }
 }
@@ -375,13 +412,18 @@ size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t>& parsed,
 template <typename Language>
 size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
                                             size_t seed0, size_t depth,
-                                            bool debug) const {
+                                            bool debug, uint32_t* distr) const {
   constexpr size_t kNumThreads = 32;
   size_t num_programs = params.num_programs;
 
   DeviceMemory<uint8_t> programs(kSingleTapeSize * num_programs);
   DeviceMemory<unsigned long long> insn_count(1);
   DeviceMemory<size_t> result(num_programs);
+  DeviceMemory<uint32_t> distribution(256);
+
+  if (distr) {
+    distribution.Write(distr, 256);
+  }
 
   auto seed = [&](size_t seed2) {
     return SplitMix64(SplitMix64(params.seed) ^ SplitMix64(seed2));
@@ -389,7 +431,7 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
 
   RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
       InitPrograms<Language>, seed(seed0), num_programs, programs.Get(),
-      params.zero_init);
+      params.zero_init, distr ? distribution.Get() : nullptr);
   size_t count = 0;
   for (size_t i = 0; i < depth; i++) {
     Synchronize();
@@ -402,9 +444,10 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
     std::vector<uint8_t> prog(kSingleTapeSize * num_programs);
     programs.Read(prog.data(), kSingleTapeSize * num_programs);
     bool found = false;
-    for (size_t r : res) {
-      if (r > kSelfrepThreshold) {
-        fprintf(stderr, "A %zu\n", i);
+    for (size_t j = 0; j < res.size(); j++) {
+      if (res[j] > kSelfrepThreshold) {
+        fprintf(stderr, "A %zu\n",
+                seed0 * res.size() * depth + i * res.size() + j);
         found = true;
         uint8_t* tape = &prog[0] + i * kSingleTapeSize;
         Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
@@ -415,11 +458,12 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
       count++;
       RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
           InitPrograms<Language>, seed(seed0 + 2 * i + 1), num_programs,
-          programs.Get(), params.zero_init);
+          programs.Get(), params.zero_init,
+          distr ? distribution.Get() : nullptr);
     }
     RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
         MutatePrograms<Language>, programs.Get(), seed(seed0 + 2 * i + 2),
-        (1 << 30) / 200, num_programs);
+        (1 << 30) / 200, num_programs, distr ? distribution.Get() : nullptr);
     Synchronize();
   }
   return count;
@@ -454,7 +498,7 @@ void Simulation<Language>::RunSimulation(
 
   RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
       InitPrograms<Language>, seed(0), num_programs, programs.Get(),
-      params.zero_init);
+      params.zero_init, nullptr);
 
   if (initial_program.has_value()) {
     std::vector<uint8_t> parsed = Language::Parse(*initial_program);
@@ -674,7 +718,8 @@ void Simulation<Language>::RunSimulation(
     if (params.reset_interval.has_value() &&
         epoch % *params.reset_interval == 0) {
       RUN(num_programs / kNumThreads, kNumThreads, InitPrograms<Language>,
-          seed(reset_index), num_programs, programs.Get(), params.zero_init);
+          seed(reset_index), num_programs, programs.Get(), params.zero_init,
+          nullptr);
       reset_index++;
     }
   }

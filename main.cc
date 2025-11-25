@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <optional>
@@ -215,6 +216,8 @@ FLAG(size_t, grid_width_2d, 0, "width of the 2d grid");
 FLAG(bool, disable_output, false, "disable printing to stdout");
 FLAG(std::optional<size_t>, stopping_selfrep_count, std::nullopt,
      "stop when that many programs appear to be self-replicators");
+FLAG(std::optional<std::string>, sample_distribution, std::nullopt,
+     "distribution to sample new bytes from");
 
 int main(int argc, char** argv) {
   flags::ParseCommandLine(argc, argv);
@@ -328,6 +331,7 @@ int main(int argc, char** argv) {
 
   auto run_flag = GetFlag(FLAGS_run);
   auto sample_flag = GetFlag(FLAGS_sample);
+  auto sample_distribution = GetFlag(FLAGS_sample_distribution);
   auto lang = GetFlag(FLAGS_lang);
   const LanguageInterface* language = GetLanguage(lang);
   if (run_flag.has_value()) {
@@ -335,6 +339,25 @@ int main(int argc, char** argv) {
     language->RunSingleProgram(run_flag.value(), GetFlag(FLAGS_run_steps),
                                debug);
   } else if (sample_flag.has_value()) {
+    std::vector<uint32_t> distribution;
+    if (sample_distribution.has_value()) {
+      std::string d = sample_distribution.value();
+      int p = 0;
+      while (true) {
+        int val = 0;
+        while (d[p] != ',' && d[p] != 0) {
+          val = val * 10 + d[p] - '0';
+          p++;
+        }
+        distribution.push_back(val);
+        if (d[p] != 0) {
+          p++;
+          continue;
+        }
+        break;
+      }
+      assert(distribution.size() == 256);
+    }
     // choose a width
     // pick width programs
     // {
@@ -346,11 +369,12 @@ int main(int argc, char** argv) {
     size_t replicators = 0;
     for (size_t i = 0; i < sample_flag.value(); ++i) {
       sampled += params.num_programs;
-      replicators += language->SamplePrograms(params, i, depth, debug);
+      replicators += language->SamplePrograms(
+          params, i, depth, debug,
+          distribution.empty() ? nullptr : distribution.data());
     }
-    printf(
-        "tested %zu programs for %zu iterations each, found %zu replicators\n",
-        sampled, depth, replicators);
+    printf("tested %zu programs for %zu iterations each, found %zu replicators",
+           sampled, depth, replicators);
   } else {
     FILE* logfile = nullptr;
     if (log_to.has_value()) {
@@ -375,10 +399,12 @@ int main(int argc, char** argv) {
         }
       }
       int soup_bytes_diff = 0;
+      int soup_new_distr[256] = {0};
       if (!prev_soup.empty()) {
         for (int i = 0; i < state.soup.size(); i++) {
           if (state.soup[i] != prev_soup[i]) {
             soup_bytes_diff++;
+            soup_new_distr[state.soup[i]]++;
           }
         }
       }
@@ -428,10 +454,16 @@ int main(int argc, char** argv) {
           fprintf(logfile, "%zu,%zu,%zu,%f,%d,%d\n", state.epoch,
                   state.brotli_size, state.soup.size() / kSingleTapeSize,
                   state.higher_entropy, soup_bytes_diff, repl_count);
+          for (int i = 0; i < 256; i++)
+            fprintf(logfile, ",%d", soup_new_distr[i]);
+          fprintf(logfile, "\n");
         } else {
-          fprintf(logfile, "%zu,%zu,%zu,%f,%d\n", state.epoch,
-                  state.brotli_size, state.soup.size() / kSingleTapeSize,
-                  state.higher_entropy, soup_bytes_diff);
+          fprintf(logfile, "%zu,%zu,%zu,%f,%d", state.epoch, state.brotli_size,
+                  state.soup.size() / kSingleTapeSize, state.higher_entropy,
+                  soup_bytes_diff);
+          for (int i = 0; i < 256; i++)
+            fprintf(logfile, ",%d", soup_new_distr[i]);
+          fprintf(logfile, "\n");
         }
         fflush(logfile);
       }
