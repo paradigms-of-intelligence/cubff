@@ -463,7 +463,8 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
     }
     RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
         MutatePrograms<Language>, programs.Get(), seed(seed0 + 2 * i + 2),
-        (1 << 30) / 200, num_programs, distr ? distribution.Get() : nullptr);
+        (int)round((1 << 30) * params.mutation_prob), num_programs,
+        distr ? distribution.Get() : nullptr);
     Synchronize();
   }
   return count;
