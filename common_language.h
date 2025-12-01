@@ -411,7 +411,7 @@ size_t Simulation<Language>::EvalParsedSelfrep(std::vector<uint8_t>& parsed,
 
 template <typename Language>
 size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
-                                            size_t seed0, size_t depth,
+                                            size_t seed_in, size_t depth,
                                             bool debug, uint32_t* distr) const {
   constexpr size_t kNumThreads = 32;
   size_t num_programs = params.num_programs;
@@ -420,6 +420,8 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
   DeviceMemory<unsigned long long> insn_count(1);
   DeviceMemory<size_t> result(num_programs);
   DeviceMemory<uint32_t> distribution(256);
+
+  size_t seed0 = SplitMix64(seed_in);
 
   if (distr) {
     distribution.Write(distr, 256);
@@ -463,7 +465,7 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
     }
     RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
         MutatePrograms<Language>, programs.Get(), seed(seed0 + 2 * i + 2),
-        (int)round((1 << 30) * params.mutation_prob), num_programs,
+        params.mutation_prob, num_programs,
         distr ? distribution.Get() : nullptr);
     Synchronize();
   }
