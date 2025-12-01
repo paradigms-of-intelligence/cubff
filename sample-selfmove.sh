@@ -12,7 +12,9 @@ rundistr() {
 }
 
 
-rundistr sample --num 1000000 --sample 1000 --sample_depth 1
-rundistr mutate-50 --num 100000 --sample 1 --sample_depth 10000 --mutation_prob 0.02
-rundistr mutate-100 --num 100000 --sample 1 --sample_depth 10000 --mutation_prob 0.01
-rundistr mutate-200 --num 100000 --sample 1 --sample_depth 10000 --mutation_prob 0.005
+AMOUNT=1000000
+
+rundistr sample --num 1024 --sample $AMOUNT --sample_depth 1
+rundistr mutate-50 --num 1024 --sample 1 --sample_depth $AMOUNT --mutation_prob 0.02
+rundistr mutate-100 --num 1024 --sample 1 --sample_depth $AMOUNT --mutation_prob 0.01
+rundistr mutate-200 --num 1024 --sample 1 --sample_depth $AMOUNT --mutation_prob 0.005
