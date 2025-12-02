@@ -138,10 +138,11 @@ inline __device__ __host__ uint64_t SplitMix64(uint64_t seed) {
 template <typename Language>
 __global__ void InitPrograms(size_t seed, size_t num_programs,
                              uint8_t* programs, bool zero_init,
-                             uint32_t* distr) {
+                             uint32_t* distr, std::optional<size_t> only_this_index) {
   size_t index = GetIndex();
   auto prog = programs + index * kSingleTapeSize;
   if (index >= num_programs) return;
+  if (only_this_index && *only_this_index != index) return;
   if (zero_init) {
     for (size_t i = 0; i < kSingleTapeSize; i++) {
       prog[i] = 0;
@@ -167,22 +168,6 @@ __global__ void InitPrograms(size_t seed, size_t num_programs,
       }
       programs[index * kSingleTapeSize + i] = repl;
     }
-  }
-}
-
-template <typename Language>
-__global__ void InitSomePrograms(size_t seed, size_t num_programs,
-                                 uint8_t* programs, size_t* when_above,
-                                 size_t threshold) {
-  size_t index = GetIndex();
-  auto prog = programs + index * kSingleTapeSize;
-  if (index >= num_programs) return;
-  if (when_above[index] <= threshold) return;
-  fprintf(stderr, "foo\n");
-  for (size_t i = 0; i < kSingleTapeSize; i++) {
-    prog[i] = SplitMix64(kSingleTapeSize * num_programs * seed +
-                         kSingleTapeSize * index + i) %
-              256;
   }
 }
 
@@ -433,7 +418,7 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
 
   RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
       InitPrograms<Language>, seed(seed0), num_programs, programs.Get(),
-      params.zero_init, distr ? distribution.Get() : nullptr);
+      params.zero_init, distr ? distribution.Get() : nullptr, std::nullopt);
   size_t count = 0;
   for (size_t i = 0; i < depth; i++) {
     Synchronize();
@@ -445,23 +430,19 @@ size_t Simulation<Language>::SamplePrograms(const SimulationParams& params,
     result.Read(res.data(), num_programs);
     std::vector<uint8_t> prog(kSingleTapeSize * num_programs);
     programs.Read(prog.data(), kSingleTapeSize * num_programs);
-    bool found = false;
     for (size_t j = 0; j < res.size(); j++) {
       if (res[j] > kSelfrepThreshold) {
         fprintf(stderr, "A %zu\n",
                 seed0 * res.size() * depth + i * res.size() + j);
-        found = true;
+        count++;
         uint8_t* tape = &prog[0] + i * kSingleTapeSize;
         Language::PrintProgram(2 * kSingleTapeSize, tape, 2 * kSingleTapeSize,
                                nullptr, 0);
+        RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
+            InitPrograms<Language>, seed(seed0 + 2 * i + 1), num_programs,
+            programs.Get(), params.zero_init,
+            distr ? distribution.Get() : nullptr, j);
       }
-    }
-    if (found) {
-      count++;
-      RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
-          InitPrograms<Language>, seed(seed0 + 2 * i + 1), num_programs,
-          programs.Get(), params.zero_init,
-          distr ? distribution.Get() : nullptr);
     }
     RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
         MutatePrograms<Language>, programs.Get(), seed(seed0 + 2 * i + 2),
@@ -501,7 +482,7 @@ void Simulation<Language>::RunSimulation(
 
   RUN((num_programs + kNumThreads - 1) / kNumThreads, kNumThreads,
       InitPrograms<Language>, seed(0), num_programs, programs.Get(),
-      params.zero_init, nullptr);
+      params.zero_init, nullptr, std::nullopt);
 
   if (initial_program.has_value()) {
     std::vector<uint8_t> parsed = Language::Parse(*initial_program);
@@ -722,7 +703,7 @@ void Simulation<Language>::RunSimulation(
         epoch % *params.reset_interval == 0) {
       RUN(num_programs / kNumThreads, kNumThreads, InitPrograms<Language>,
           seed(reset_index), num_programs, programs.Get(), params.zero_init,
-          nullptr);
+          nullptr, std::nullopt);
       reset_index++;
     }
   }
