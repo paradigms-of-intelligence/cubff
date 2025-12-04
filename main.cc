@@ -373,8 +373,9 @@ int main(int argc, char** argv) {
           params, i, depth, debug,
           distribution.empty() ? nullptr : distribution.data());
     }
-    printf("tested %zu programs for %zu iterations each, found %zu replicators",
-           sampled, depth, replicators);
+    printf(
+        "tested %zu programs for %zu iterations each, found %zu replicators\n",
+        sampled, depth, replicators);
   } else {
     FILE* logfile = nullptr;
     if (log_to.has_value()) {
