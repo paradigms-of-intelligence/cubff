@@ -70,7 +70,8 @@ PYBIND11_MODULE(cubff, m) {
       .def_readonly("frequent_bytes", &SimulationState::frequent_bytes)
       .def_readonly("uncommon_bytes", &SimulationState::uncommon_bytes)
       .def_readonly("replication_per_prog",
-                    &SimulationState::replication_per_prog);
+                    &SimulationState::replication_per_prog)
+      .def_readonly("histogram", &SimulationState::histogram);
 
   pybind11::class_<LanguageInterface>(m, "LanguageInterface")
       .def("PrintProgram",

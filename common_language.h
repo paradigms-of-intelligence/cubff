@@ -62,6 +62,12 @@ __inline__ __device__ void IncreaseInsnCount(unsigned long long count,
   }
 }
 
+__inline__ __device__ __host__ bool IsValidOp(uint8_t c) {
+    return c == '[' || c == ']' || c == '+' || c == '-' ||
+           c == '.' || c == ',' || c == '<' || c == '>' ||
+           c == '{' || c == '}' || c == 0;
+}
+
 inline void Synchronize() { CUCHECK(cudaDeviceSynchronize()); }
 
 template <typename T>
@@ -159,6 +165,7 @@ __global__ void MutateAndRunPrograms(uint8_t *programs,
                                      const uint32_t *shuf_idx, size_t seed,
                                      uint32_t mutation_prob,
                                      unsigned long long *insn_count,
+                                     unsigned long long *histogram,
                                      size_t num_programs, size_t num_indices) {
   size_t index = GetIndex();
   uint8_t tape[2 * kSingleTapeSize] = {};
@@ -190,6 +197,14 @@ __global__ void MutateAndRunPrograms(uint8_t *programs,
     programs[p2 * kSingleTapeSize + i] = tape[i + kSingleTapeSize];
   }
   IncreaseInsnCount(ops, insn_count);
+  if (histogram != nullptr && index < num_indices) {
+    size_t len = 0;
+    for (size_t i = 0; i < 2 * kSingleTapeSize; i++) {
+      if (IsValidOp(tape[i])) len++;
+    }
+    size_t ops_bin = ops < (size_t)(kHistogramOps - 1) ? ops : (size_t)(kHistogramOps - 1);
+    atomicAdd(&histogram[ops_bin * kHistogramLen + len], 1ULL);
+  }
 }
 
 template <typename Language>
@@ -361,6 +376,7 @@ void Simulation<Language>::RunSimulation(
 
   DeviceMemory<uint8_t> programs(kSingleTapeSize * num_programs);
   DeviceMemory<unsigned long long> insn_count(1);
+  DeviceMemory<unsigned long long> histogram(kHistogramOps * kHistogramLen);
 
   CHECK(num_programs % 2 == 0);
 
@@ -379,6 +395,8 @@ void Simulation<Language>::RunSimulation(
 
   unsigned long long zero = 0;
   insn_count.Write(&zero, 1);
+  histogram.Write(std::vector<unsigned long long>(kHistogramOps * kHistogramLen, 0).data(),
+                  kHistogramOps * kHistogramLen);
 
   unsigned long long total_ops = 0;
 
@@ -387,6 +405,7 @@ void Simulation<Language>::RunSimulation(
   state.soup.resize(num_programs * kSingleTapeSize);
   state.replication_per_prog.resize(num_programs);
   state.shuffle_idx.resize(num_programs);
+  state.histogram.resize(kHistogramOps * kHistogramLen, 0);
   Language::InitByteColors(state.byte_colors);
 
   if (params.save_to.has_value()) {
@@ -489,8 +508,8 @@ void Simulation<Language>::RunSimulation(
 
     RUN((num_programs + 2 * kNumThreads - 1) / (2 * kNumThreads), kNumThreads,
         MutateAndRunPrograms<Language>, programs.Get(), shuf_idx.Get(),
-        seed(epoch), params.mutation_prob, insn_count.Get(), num_programs,
-        num_indices);
+        seed(epoch), params.mutation_prob, insn_count.Get(), histogram.Get(),
+        num_programs, num_indices);
     num_runs += num_indices;
 
     if (epoch % params.callback_interval == 0) {
@@ -498,6 +517,9 @@ void Simulation<Language>::RunSimulation(
       Synchronize();
       unsigned long long insn;
       insn_count.Read(&insn, 1);
+      std::vector<unsigned long long> hist_data(kHistogramOps * kHistogramLen);
+      histogram.Read(hist_data.data(), kHistogramOps * kHistogramLen);
+      state.histogram.assign(hist_data.begin(), hist_data.end());
       total_ops += insn;
       programs.Read(state.soup.data(), num_programs * kSingleTapeSize);
       Synchronize();
@@ -585,6 +607,8 @@ void Simulation<Language>::RunSimulation(
       num_runs = 0;
       start = std::chrono::high_resolution_clock::now();
       insn_count.Write(&zero, 1);
+      histogram.Write(std::vector<unsigned long long>(kHistogramOps * kHistogramLen, 0).data(),
+                      kHistogramOps * kHistogramLen);
     }
 
     if (params.reset_interval.has_value() &&
