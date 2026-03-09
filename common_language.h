@@ -207,7 +207,7 @@ __global__ void CheckSelfRep(uint8_t *programs, size_t seed,
   constexpr size_t kNumIters = 13;
   constexpr size_t kNumExtraGens = 4;
   uint8_t tapes[kNumIters][2 * kSingleTapeSize] = {};
-  if (index > num_programs) return;
+  if (index >= num_programs) return;
   uint64_t local_seed = SplitMix64(num_programs * seed + index);
   for (size_t i = 0; i < kNumIters; i++) {
     bool eval_debug = false;
